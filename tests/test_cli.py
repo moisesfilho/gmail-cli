@@ -10,6 +10,9 @@ from gmail_cli.auth import AuthError
 from gmail_cli.cli import _create_client
 from gmail_cli.models import Draft, Label, Message
 
+import gmail_cli.cli
+_cli_mod = sys.modules["gmail_cli.cli"]
+
 
 @pytest.fixture
 def runner():
@@ -22,7 +25,7 @@ def mock_client():
 
 
 def invoke(runner, args, mock_client, **kwargs):
-    with patch("gmail_cli.cli._create_client", return_value=mock_client):
+    with patch.object(_cli_mod, "_create_client", return_value=mock_client):
         return runner.invoke(cli, args, **kwargs)
 
 
@@ -38,7 +41,7 @@ class TestEntryPoint:
         assert "Usage:" in result.stdout
 
     def test_create_client(self):
-        with patch("gmail_cli.cli.AuthService") as mock_auth:
+        with patch.object(_cli_mod, "AuthService") as mock_auth:
             mock_service = MagicMock()
             mock_auth.return_value.get_service.return_value = mock_service
             client = _create_client()
