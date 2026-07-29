@@ -656,6 +656,7 @@ class TestPrompt:
         mock_provider = MagicMock()
         mock_provider.generate_command.return_value = "gmail invalid-command-name"
         original_main = cli.main
+
         def side_effect(args=None, **kwargs):
             if args and "prompt" in args:
                 return original_main(args=args, **kwargs)
@@ -674,10 +675,11 @@ class TestPrompt:
         mock_provider = MagicMock()
         mock_provider.generate_command.return_value = "gmail search"
         original_main = cli.main
+
         def side_effect(args=None, **kwargs):
             if args and "prompt" in args:
                 return original_main(args=args, **kwargs)
-            raise click.Abort()
+            raise click.Abort
 
         with (
             patch("gmail_cli.cli.load_config") as mock_load,
@@ -692,6 +694,7 @@ class TestPrompt:
         mock_provider = MagicMock()
         mock_provider.generate_command.return_value = "gmail search"
         original_main = cli.main
+
         def side_effect(args=None, **kwargs):
             if args and "prompt" in args:
                 return original_main(args=args, **kwargs)
@@ -710,6 +713,7 @@ class TestPrompt:
         mock_provider = MagicMock()
         mock_provider.generate_command.return_value = "gmail search"
         original_main = cli.main
+
         def side_effect(args=None, **kwargs):
             if args and "prompt" in args:
                 return original_main(args=args, **kwargs)
@@ -728,6 +732,7 @@ class TestPrompt:
         mock_provider = MagicMock()
         mock_provider.generate_command.return_value = "gmail search"
         original_main = cli.main
+
         def side_effect(args=None, **kwargs):
             if args and "prompt" in args:
                 return original_main(args=args, **kwargs)
@@ -747,6 +752,7 @@ class TestPrompt:
         mock_provider.generate_command.return_value = "gmail"
         original_main = cli.main
         inner_calls = []
+
         def side_effect(args=None, **kwargs):
             if args and "prompt" in args:
                 return original_main(args=args, **kwargs)
