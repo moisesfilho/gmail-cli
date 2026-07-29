@@ -1,6 +1,13 @@
 # gmail-cli
 
-**Versão:** `v1.0.0-alpha`
+<p>
+  <img src="https://img.shields.io/badge/vers%C3%A3o-v1.0.0--alpha-blue" alt="Versão">
+  <img src="https://img.shields.io/badge/licen%C3%A7a-MIT-green" alt="Licença">
+  <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python">
+  <img src="https://img.shields.io/badge/testes-134%20passando-brightgreen" alt="Testes">
+  <img src="https://img.shields.io/badge/cobertura-100%25-brightgreen" alt="Cobertura">
+</p>
+
 **Idiomas:** [English](README.md) | [Português](#)
 
 CLI para gerenciar e-mail, labels, rascunhos e anexos do Gmail via terminal.
