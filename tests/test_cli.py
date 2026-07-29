@@ -10,7 +10,6 @@ from gmail_cli.auth import AuthError
 from gmail_cli.cli import _create_client
 from gmail_cli.models import Draft, Label, Message
 
-import gmail_cli.cli
 _cli_mod = sys.modules["gmail_cli.cli"]
 
 
