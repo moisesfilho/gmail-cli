@@ -10,8 +10,12 @@ permissions:
   contents: write
 
 jobs:
+  quality-gate:
+    uses: ./.github/workflows/quality-gate.yml
+
   build:
     name: Build & Release
+    needs: quality-gate
     runs-on: ubuntu-latest
 
     steps:
