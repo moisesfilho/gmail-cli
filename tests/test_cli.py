@@ -51,7 +51,7 @@ class TestEntryPoint:
 
 class TestAuthLogout:
     def test_logout(self, runner):
-        with patch("gmail_cli.cli.AuthService") as mock_svc:
+        with patch.object(_cli_mod, "AuthService") as mock_svc:
             svc_instance = mock_svc.return_value
             result = runner.invoke(cli, ["auth", "logout"])
             assert "removido" in result.output or "Token" in result.output
@@ -60,14 +60,14 @@ class TestAuthLogout:
 
 class TestAuthStatus:
     def test_status_authenticated(self, runner):
-        with patch("gmail_cli.cli.AuthService") as mock_svc:
+        with patch.object(_cli_mod, "AuthService") as mock_svc:
             svc_instance = mock_svc.return_value
             svc_instance._load_credentials.return_value = MagicMock()
             result = runner.invoke(cli, ["auth", "status"])
             assert "Autenticado" in result.output
 
     def test_status_credentials_found(self, runner):
-        with patch("gmail_cli.cli.AuthService") as mock_svc:
+        with patch.object(_cli_mod, "AuthService") as mock_svc:
             svc_instance = mock_svc.return_value
             svc_instance._load_credentials.return_value = None
             svc_instance.CREDENTIALS_FILE = "/fake/path"
@@ -76,7 +76,7 @@ class TestAuthStatus:
                 assert "credenciais encontradas" in result.output.lower()
 
     def test_status_no_credentials(self, runner):
-        with patch("gmail_cli.cli.AuthService") as mock_svc:
+        with patch.object(_cli_mod, "AuthService") as mock_svc:
             svc_instance = mock_svc.return_value
             svc_instance._load_credentials.return_value = None
             svc_instance.CREDENTIALS_FILE = "/fake/path"
@@ -87,7 +87,7 @@ class TestAuthStatus:
 
 class TestAuthLogin:
     def test_login(self, runner):
-        with patch("gmail_cli.cli.AuthService") as mock_svc:
+        with patch.object(_cli_mod, "AuthService") as mock_svc:
             svc_instance = mock_svc.return_value
             result = runner.invoke(cli, ["auth", "login"])
             assert "conclu" in result.output
@@ -568,9 +568,9 @@ class TestSearch:
 
 class TestPrompt:
     def test_no_provider_shows_error(self, runner, mock_client):
-        with patch("gmail_cli.cli.load_config") as mock_load:
+        with patch.object(_cli_mod, "load_config") as mock_load:
             mock_load.return_value = ProviderConfig(provider="openai")
-            with patch("gmail_cli.cli.create_provider") as mock_create:
+            with patch.object(_cli_mod, "create_provider") as mock_create:
                 mock_create.side_effect = ValueError("API_KEY not configured")
                 result = runner.invoke(cli, ["prompt", "test"])
                 assert "API_KEY" in result.output
@@ -578,9 +578,9 @@ class TestPrompt:
     def test_displays_generated_command(self, runner, mock_client):
         mock_provider = MagicMock()
         mock_provider.generate_command.return_value = "gmail search --query 'from:john'"
-        with patch("gmail_cli.cli.load_config") as mock_load:
+        with patch.object(_cli_mod, "load_config") as mock_load:
             mock_load.return_value = ProviderConfig(provider="ollama")
-            with patch("gmail_cli.cli.create_provider", return_value=mock_provider):
+            with patch.object(_cli_mod, "create_provider", return_value=mock_provider):
                 result = runner.invoke(cli, ["prompt", "emails", "from", "john"], input="n\n")
                 assert "gmail search --query 'from:john'" in result.output
                 assert "Deseja executar o comando sugerido?" in result.output
@@ -594,9 +594,9 @@ class TestPrompt:
         mock_provider = MagicMock()
         mock_provider.generate_command.return_value = "gmail search --query 'is:unread'"
         with (
-            patch("gmail_cli.cli.load_config") as mock_load,
-            patch("gmail_cli.cli._create_client", return_value=mock_client),
-            patch("gmail_cli.cli.create_provider", return_value=mock_provider),
+            patch.object(_cli_mod, "load_config") as mock_load,
+            patch.object(_cli_mod, "_create_client", return_value=mock_client),
+            patch.object(_cli_mod, "create_provider", return_value=mock_provider),
         ):
             mock_load.return_value = ProviderConfig(provider="ollama")
             result = runner.invoke(cli, ["prompt", "unread", "emails"], input="n\n")
@@ -607,9 +607,9 @@ class TestPrompt:
         mock_provider = MagicMock()
         mock_provider.generate_command.return_value = "gmail search --query 'is:unread'"
         with (
-            patch("gmail_cli.cli.load_config") as mock_load,
-            patch("gmail_cli.cli._create_client", return_value=mock_client),
-            patch("gmail_cli.cli.create_provider", return_value=mock_provider),
+            patch.object(_cli_mod, "load_config") as mock_load,
+            patch.object(_cli_mod, "_create_client", return_value=mock_client),
+            patch.object(_cli_mod, "create_provider", return_value=mock_provider),
         ):
             mock_load.return_value = ProviderConfig(provider="ollama")
             mock_client.list_messages.return_value = [
@@ -626,9 +626,9 @@ class TestPrompt:
         mock_provider = MagicMock()
         mock_provider.generate_command.return_value = "gmail search --query 'is:unread'"
         with (
-            patch("gmail_cli.cli.load_config") as mock_load,
-            patch("gmail_cli.cli._create_client", return_value=mock_client),
-            patch("gmail_cli.cli.create_provider", return_value=mock_provider),
+            patch.object(_cli_mod, "load_config") as mock_load,
+            patch.object(_cli_mod, "_create_client", return_value=mock_client),
+            patch.object(_cli_mod, "create_provider", return_value=mock_provider),
         ):
             mock_load.return_value = ProviderConfig(provider="ollama")
             mock_client.list_messages.return_value = [
@@ -645,8 +645,8 @@ class TestPrompt:
         mock_provider = MagicMock()
         mock_provider.generate_command.return_value = ""
         with (
-            patch("gmail_cli.cli.load_config") as mock_load,
-            patch("gmail_cli.cli.create_provider", return_value=mock_provider),
+            patch.object(_cli_mod, "load_config") as mock_load,
+            patch.object(_cli_mod, "create_provider", return_value=mock_provider),
         ):
             mock_load.return_value = ProviderConfig(provider="ollama")
             result = runner.invoke(cli, ["prompt", "something"])
@@ -663,8 +663,8 @@ class TestPrompt:
             raise click.ClickException("No such command 'invalid-command-name'")
 
         with (
-            patch("gmail_cli.cli.load_config") as mock_load,
-            patch("gmail_cli.cli.create_provider", return_value=mock_provider),
+            patch.object(_cli_mod, "load_config") as mock_load,
+            patch.object(_cli_mod, "create_provider", return_value=mock_provider),
             patch.object(cli, "main", side_effect=side_effect),
         ):
             mock_load.return_value = ProviderConfig(provider="ollama")
@@ -682,8 +682,8 @@ class TestPrompt:
             raise click.Abort
 
         with (
-            patch("gmail_cli.cli.load_config") as mock_load,
-            patch("gmail_cli.cli.create_provider", return_value=mock_provider),
+            patch.object(_cli_mod, "load_config") as mock_load,
+            patch.object(_cli_mod, "create_provider", return_value=mock_provider),
             patch.object(cli, "main", side_effect=side_effect),
         ):
             mock_load.return_value = ProviderConfig(provider="ollama")
@@ -701,8 +701,8 @@ class TestPrompt:
             raise SystemExit(1)
 
         with (
-            patch("gmail_cli.cli.load_config") as mock_load,
-            patch("gmail_cli.cli.create_provider", return_value=mock_provider),
+            patch.object(_cli_mod, "load_config") as mock_load,
+            patch.object(_cli_mod, "create_provider", return_value=mock_provider),
             patch.object(cli, "main", side_effect=side_effect),
         ):
             mock_load.return_value = ProviderConfig(provider="ollama")
@@ -720,8 +720,8 @@ class TestPrompt:
             raise SystemExit(0)
 
         with (
-            patch("gmail_cli.cli.load_config") as mock_load,
-            patch("gmail_cli.cli.create_provider", return_value=mock_provider),
+            patch.object(_cli_mod, "load_config") as mock_load,
+            patch.object(_cli_mod, "create_provider", return_value=mock_provider),
             patch.object(cli, "main", side_effect=side_effect),
         ):
             mock_load.return_value = ProviderConfig(provider="ollama")
@@ -739,8 +739,8 @@ class TestPrompt:
             raise Exception("unexpected error")
 
         with (
-            patch("gmail_cli.cli.load_config") as mock_load,
-            patch("gmail_cli.cli.create_provider", return_value=mock_provider),
+            patch.object(_cli_mod, "load_config") as mock_load,
+            patch.object(_cli_mod, "create_provider", return_value=mock_provider),
             patch.object(cli, "main", side_effect=side_effect),
         ):
             mock_load.return_value = ProviderConfig(provider="ollama")
@@ -760,8 +760,8 @@ class TestPrompt:
             return None
 
         with (
-            patch("gmail_cli.cli.load_config") as mock_load,
-            patch("gmail_cli.cli.create_provider", return_value=mock_provider),
+            patch.object(_cli_mod, "load_config") as mock_load,
+            patch.object(_cli_mod, "create_provider", return_value=mock_provider),
             patch.object(cli, "main", side_effect=side_effect),
         ):
             mock_load.return_value = ProviderConfig(provider="ollama")
@@ -772,21 +772,21 @@ class TestPrompt:
 
 class TestConfig:
     def test_show_defaults(self, runner):
-        with patch("gmail_cli.cli.load_config") as mock_load:
+        with patch.object(_cli_mod, "load_config") as mock_load:
             mock_load.return_value = ProviderConfig()
             result = runner.invoke(cli, ["config", "show"])
             assert "ollama" in result.output
             assert "http://localhost:11434" in result.output
 
     def test_show_with_api_key_masks(self, runner):
-        with patch("gmail_cli.cli.load_config") as mock_load:
+        with patch.object(_cli_mod, "load_config") as mock_load:
             mock_load.return_value = ProviderConfig(provider="openai", api_key="sk-secret123")
             result = runner.invoke(cli, ["config", "show"])
             assert "sk-secre" in result.output
             assert "sk-secret123" not in result.output
 
     def test_show_gemini(self, runner):
-        with patch("gmail_cli.cli.load_config") as mock_load:
+        with patch.object(_cli_mod, "load_config") as mock_load:
             mock_load.return_value = ProviderConfig(
                 provider="gemini", api_key="secret-gemini-key-long"
             )
@@ -796,8 +796,8 @@ class TestConfig:
 
     def test_set_saves_config(self, runner):
         with (
-            patch("gmail_cli.cli.save_config") as mock_save,
-            patch("gmail_cli.cli.load_config") as mock_load,
+            patch.object(_cli_mod, "save_config") as mock_save,
+            patch.object(_cli_mod, "load_config") as mock_load,
         ):
             mock_load.return_value = ProviderConfig()
             result = runner.invoke(
@@ -810,8 +810,8 @@ class TestConfig:
 
     def test_set_ollama_url(self, runner):
         with (
-            patch("gmail_cli.cli.save_config") as mock_save,
-            patch("gmail_cli.cli.load_config") as mock_load,
+            patch.object(_cli_mod, "save_config") as mock_save,
+            patch.object(_cli_mod, "load_config") as mock_load,
         ):
             mock_load.return_value = ProviderConfig()
             runner.invoke(cli, ["config", "set", "--ollama-url", "http://ollama.local:8080"])
