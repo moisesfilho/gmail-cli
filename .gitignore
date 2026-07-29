@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.ruff_cache/
+.pytest_cache/
+.venv/
+env/
+venv/
+.gmail_cli_credentials.json
+gmail_cli_token.json
+.coverage
