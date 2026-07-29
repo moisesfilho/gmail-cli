@@ -1,10 +1,10 @@
 # gmail-cli
 
 <p>
-  <img src="https://img.shields.io/badge/vers%C3%A3o-v1.1.0--alpha-blue" alt="Versão">
+  <img src="https://img.shields.io/badge/vers%C3%A3o-v1.2.0--alpha-blue" alt="Versão">
   <img src="https://img.shields.io/badge/licen%C3%A7a-MIT-green" alt="Licença">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python">
-  <img src="https://img.shields.io/badge/testes-184%20passando-brightgreen" alt="Testes">
+  <img src="https://img.shields.io/badge/testes-189%20passando-brightgreen" alt="Testes">
   <img src="https://img.shields.io/badge/cobertura-100%25-brightgreen" alt="Cobertura">
 </p>
 
@@ -108,12 +108,26 @@ gmail draft send <draft_id>
 gmail draft delete <draft_id>
 ```
 
-### Anexos
+### Exportação de E-mails para IA/RAG
+
+Exporte os dados e corpos de e-mails em formatos otimizados para processamento de IA/RAG (JSON, JSONL, Markdown) usando a opção `--export` / `-e` nos comandos `show`, `search` e `list messages`:
 
 ```bash
-gmail attachments <message_id>
-gmail attachments <message_id> -o ./downloads
+# Exportar detalhes de um e-mail para Markdown
+gmail show <message_id> --export email.md
+
+# Exportar múltiplos resultados de busca para JSON Lines
+gmail search -q "subject:reunião" --export resultados.jsonl
+
+# Exportar listagem de e-mails no formato JSON padrão
+gmail list messages --export lista.txt
 ```
+
+Formatos suportados:
+- `.json`: Estrutura de dados JSON padrão.
+- `.jsonl`: JSON Lines (um objeto de e-mail por linha, ideal para indexação em bancos vetoriais).
+- `.md`: Documento Markdown limpo com cabeçalho no estilo YAML.
+- Outras extensões utilizam JSON por padrão.
 
 ### Comando em Linguagem Natural
 
@@ -178,7 +192,7 @@ gmail-cli/
 ## Testes
 
 ```bash
-pytest                    # 184 testes
+pytest                    # 189 testes
 pytest --cov=             # Cobertura (100%)
 ```
 

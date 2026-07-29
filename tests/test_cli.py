@@ -1,3 +1,5 @@
+import json
+import os
 import subprocess
 import sys
 from unittest.mock import MagicMock, patch
@@ -817,3 +819,179 @@ class TestConfig:
             runner.invoke(cli, ["config", "set", "--ollama-url", "http://ollama.local:8080"])
             saved = mock_save.call_args[0][0]
             assert saved.ollama_url == "http://ollama.local:8080"
+
+
+class TestExport:
+    def test_show_export_json(self, runner, mock_client):
+        mock_msg = Message(
+            id="msg123",
+            thread_id="thread456",
+            from_="sender@test.com",
+            subject="Test Subject",
+            date="Wed, 29 Jul 2026",
+            label_ids=["INBOX", "UNREAD"],
+            to="recipient@test.com",
+            body="This is the message body.",
+        )
+        mock_client.get_message.return_value = mock_msg
+        with (
+            patch.object(_cli_mod, "_create_client", return_value=mock_client),
+            runner.isolated_filesystem(),
+        ):
+            result = runner.invoke(cli, ["show", "msg123", "--export", "output.json"])
+            assert "exportados com sucesso" in result.output
+            assert os.path.exists("output.json")
+            with open("output.json", encoding="utf-8") as f:
+                data = json.load(f)
+            assert data["id"] == "msg123"
+            assert data["body"] == "This is the message body."
+
+    def test_show_export_md(self, runner, mock_client):
+        mock_msg = Message(
+            id="msg123",
+            thread_id="thread456",
+            from_="sender@test.com",
+            subject="Test Subject",
+            date="Wed, 29 Jul 2026",
+            label_ids=["INBOX", "UNREAD"],
+            to="recipient@test.com",
+            body="This is the message body.",
+        )
+        mock_client.get_message.return_value = mock_msg
+        with (
+            patch.object(_cli_mod, "_create_client", return_value=mock_client),
+            runner.isolated_filesystem(),
+        ):
+            result = runner.invoke(cli, ["show", "msg123", "--export", "output.md"])
+            assert "exportados com sucesso" in result.output
+            assert os.path.exists("output.md")
+            with open("output.md", encoding="utf-8") as f:
+                content = f.read()
+            assert "# Email: Test Subject" in content
+            assert "- **ID:** msg123" in content
+            assert "This is the message body." in content
+
+    def test_search_export_jsonl(self, runner, mock_client):
+        mock_msgs = [
+            Message(
+                id="msg1",
+                thread_id="t1",
+                from_="a@b.com",
+                subject="S1",
+                date="D1",
+                label_ids=["L1"],
+            ),
+            Message(
+                id="msg2",
+                thread_id="t2",
+                from_="c@d.com",
+                subject="S2",
+                date="D2",
+                label_ids=["L2"],
+            ),
+        ]
+        mock_client.list_messages.return_value = mock_msgs
+        mock_client.get_message.side_effect = lambda msg_id: Message(
+            id=msg_id,
+            thread_id=f"thread_{msg_id}",
+            from_=f"sender_{msg_id}@test.com",
+            subject=f"Subject {msg_id}",
+            date="Date",
+            label_ids=["INBOX"],
+            to="recipient",
+            body=f"Body {msg_id}",
+        )
+        with (
+            patch.object(_cli_mod, "_create_client", return_value=mock_client),
+            runner.isolated_filesystem(),
+        ):
+            result = runner.invoke(cli, ["search", "-q", "test", "--export", "output.jsonl"])
+            assert "exportados com sucesso" in result.output
+            assert os.path.exists("output.jsonl")
+            with open("output.jsonl", encoding="utf-8") as f:
+                lines = f.readlines()
+            assert len(lines) == 2
+            data1 = json.loads(lines[0])
+            assert data1["id"] == "msg1"
+            assert data1["body"] == "Body msg1"
+            data2 = json.loads(lines[1])
+            assert data2["id"] == "msg2"
+            assert data2["body"] == "Body msg2"
+
+    def test_list_messages_export_default_json(self, runner, mock_client):
+        mock_msgs = [
+            Message(
+                id="msg1",
+                thread_id="t1",
+                from_="a@b.com",
+                subject="S1",
+                date="D1",
+                label_ids=["L1"],
+            ),
+        ]
+        mock_client.list_messages.return_value = mock_msgs
+        mock_client.get_message.return_value = Message(
+            id="msg1",
+            thread_id="t1",
+            from_="a@b.com",
+            subject="S1",
+            date="D1",
+            label_ids=["L1"],
+            to="recip",
+            body="Body1",
+        )
+        with (
+            patch.object(_cli_mod, "_create_client", return_value=mock_client),
+            runner.isolated_filesystem(),
+        ):
+            result = runner.invoke(cli, ["list", "messages", "--export", "output.txt"])
+            assert "exportados com sucesso" in result.output
+            assert os.path.exists("output.txt.json")
+            with open("output.txt.json", encoding="utf-8") as f:
+                data = json.load(f)
+            assert isinstance(data, list)
+            assert data[0]["id"] == "msg1"
+            assert data[0]["body"] == "Body1"
+
+    def test_search_export_md_multiple(self, runner, mock_client):
+        mock_msgs = [
+            Message(
+                id="msg1",
+                thread_id="t1",
+                from_="a@b.com",
+                subject="S1",
+                date="D1",
+                label_ids=["L1"],
+            ),
+            Message(
+                id="msg2",
+                thread_id="t2",
+                from_="c@d.com",
+                subject="S2",
+                date="D2",
+                label_ids=["L2"],
+            ),
+        ]
+        mock_client.list_messages.return_value = mock_msgs
+        mock_client.get_message.side_effect = lambda msg_id: Message(
+            id=msg_id,
+            thread_id=f"thread_{msg_id}",
+            from_=f"sender_{msg_id}@test.com",
+            subject=f"Subject {msg_id}",
+            date="Date",
+            label_ids=["INBOX"],
+            to="recipient",
+            body=f"Body {msg_id}",
+        )
+        with (
+            patch.object(_cli_mod, "_create_client", return_value=mock_client),
+            runner.isolated_filesystem(),
+        ):
+            result = runner.invoke(cli, ["search", "-q", "test", "--export", "output.md"])
+            assert "exportados com sucesso" in result.output
+            assert os.path.exists("output.md")
+            with open("output.md", encoding="utf-8") as f:
+                content = f.read()
+            assert "# Email: Subject msg1" in content
+            assert "\n\n---\n\n" in content
+            assert "# Email: Subject msg2" in content

@@ -1,10 +1,10 @@
 # gmail-cli
 
 <p>
-  <img src="https://img.shields.io/badge/version-v1.1.0--alpha-blue" alt="Version">
+  <img src="https://img.shields.io/badge/version-v1.2.0--alpha-blue" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python">
-  <img src="https://img.shields.io/badge/tests-184%20passing-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-189%20passing-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/coverage-100%25-brightgreen" alt="Coverage">
 </p>
 
@@ -108,12 +108,26 @@ gmail draft send <draft_id>
 gmail draft delete <draft_id>
 ```
 
-### Attachments
+### Exporting Emails for AI/RAG
+
+Export email details and bodies to formats optimized for LLM processing/RAG (JSON, JSONL, Markdown) using the `--export` / `-e` option with `show`, `search`, and `list messages` commands:
 
 ```bash
-gmail attachments <message_id>
-gmail attachments <message_id> -o ./downloads
+# Export single email details to Markdown format
+gmail show <message_id> --export email.md
+
+# Export multiple search results to JSON Lines
+gmail search -q "subject:meeting" --export results.jsonl
+
+# Export messages list to default JSON format
+gmail list messages --export list.txt
 ```
+
+Supported formats:
+- `.json`: Standard JSON data structure.
+- `.jsonl`: JSON Lines (one email object per line, ideal for vector database indexing).
+- `.md`: Clean markdown document with YAML-like headers.
+- Other extensions default to JSON.
 
 ### Natural Language Command Prompt
 
@@ -178,7 +192,7 @@ gmail-cli/
 ## Tests
 
 ```bash
-pytest                    # 184 tests
+pytest                    # 189 tests
 pytest --cov=             # Coverage (100%)
 ```
 

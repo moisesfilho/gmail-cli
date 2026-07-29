@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import json
 import os
 import shlex
 
@@ -7,11 +8,77 @@ import click
 from .auth import AuthError, AuthService
 from .formatter import CliFormatter
 from .gmail_client import GmailClient, GmailError
+from .models import Message
 from .providers import create_provider, load_config, save_config
 
 
 def _create_client():
     return GmailClient(AuthService().get_service())
+
+
+def _export_messages(messages, export_path: str):
+    is_single = isinstance(messages, Message)
+    msgs_list = [messages] if is_single else messages
+
+    ext = os.path.splitext(export_path)[1].lower()
+
+    if ext == ".json":
+        data = []
+        for m in msgs_list:
+            data.append(
+                {
+                    "id": m.id,
+                    "thread_id": m.thread_id,
+                    "from": m.from_,
+                    "to": m.to,
+                    "subject": m.subject,
+                    "date": m.date,
+                    "label_ids": m.label_ids,
+                    "body": m.body,
+                }
+            )
+        with open(export_path, "w", encoding="utf-8") as f:
+            json.dump(
+                data[0] if (is_single and len(data) == 1) else data,
+                f,
+                indent=2,
+                ensure_ascii=False,
+            )
+
+    elif ext == ".jsonl":
+        with open(export_path, "w", encoding="utf-8") as f:
+            for m in msgs_list:
+                line_data = {
+                    "id": m.id,
+                    "thread_id": m.thread_id,
+                    "from": m.from_,
+                    "to": m.to,
+                    "subject": m.subject,
+                    "date": m.date,
+                    "label_ids": m.label_ids,
+                    "body": m.body,
+                }
+                f.write(json.dumps(line_data, ensure_ascii=False) + "\n")
+
+    elif ext == ".md":
+        with open(export_path, "w", encoding="utf-8") as f:
+            for i, m in enumerate(msgs_list):
+                if i > 0:
+                    f.write("\n\n---\n\n")
+                f.write(f"# Email: {m.subject}\n\n")
+                f.write(f"- **ID:** {m.id}\n")
+                f.write(f"- **Thread ID:** {m.thread_id}\n")
+                f.write(f"- **From:** {m.from_}\n")
+                f.write(f"- **To:** {m.to}\n")
+                f.write(f"- **Date:** {m.date}\n")
+                labels_str = ", ".join(m.label_ids)
+                f.write(f"- **Labels:** {labels_str}\n\n")
+                f.write("## Body\n\n")
+                f.write(m.body or "(No Body)")
+
+    else:
+        # Default to JSON
+        _export_messages(messages, export_path + ".json")
 
 
 fmt = CliFormatter()
@@ -67,7 +134,8 @@ def list_cmd():
 @click.option("--query", "-q", default="", help="Filtro (ex: 'from:foo@bar.com')")
 @click.option("--max", "max_results", default=20, help="Número máximo")
 @click.option("--label", "-l", multiple=True, help="Filtrar por label")
-def list_messages(query, max_results, label):
+@click.option("--export", "-e", help="Caminho do arquivo para exportação (.json, .jsonl, .md)")
+def list_messages(query, max_results, label, export):
     """Listar e-mails."""
     try:
         client = _create_client()
@@ -77,7 +145,15 @@ def list_messages(query, max_results, label):
         if not msgs:
             fmt.info("Nenhuma mensagem encontrada.")
             return
-        fmt.list_messages(msgs)
+        if export:
+            full_msgs = []
+            with click.progressbar(msgs, label="Carregando dados dos e-mails") as bar:
+                for m in bar:
+                    full_msgs.append(client.get_message(m.id))
+            _export_messages(full_msgs, export)
+            fmt.info(f"Dados exportados com sucesso para: {export}")
+        else:
+            fmt.list_messages(msgs)
     except (AuthError, GmailError) as e:
         fmt.error(str(e))
 
@@ -114,12 +190,17 @@ def list_drafts(max_results):
 @cli.command()
 @click.argument("message_id")
 @click.option("--body/--no-body", default=True, help="Exibir corpo")
-def show(message_id, body):
+@click.option("--export", "-e", help="Caminho do arquivo para exportação (.json, .jsonl, .md)")
+def show(message_id, body, export):
     """Exibir detalhes de um e-mail."""
     try:
         client = _create_client()
         msg = client.get_message(message_id)
-        fmt.show_message(msg)
+        if export:
+            _export_messages(msg, export)
+            fmt.info(f"Dados exportados com sucesso para: {export}")
+        else:
+            fmt.show_message(msg)
     except (AuthError, GmailError) as e:
         fmt.error(str(e))
 
@@ -349,7 +430,8 @@ def attachments(message_id, output):
 @cli.command()
 @click.option("--query", "-q", default="", help="Termo de busca")
 @click.option("--max", "max_results", default=20, help="Número máximo")
-def search(query, max_results):
+@click.option("--export", "-e", help="Caminho do arquivo para exportação (.json, .jsonl, .md)")
+def search(query, max_results, export):
     """Buscar e-mails."""
     try:
         client = _create_client()
@@ -357,7 +439,15 @@ def search(query, max_results):
         if not msgs:
             fmt.info("Nenhum e-mail encontrado.")
             return
-        fmt.list_messages(msgs)
+        if export:
+            full_msgs = []
+            with click.progressbar(msgs, label="Carregando dados dos e-mails") as bar:
+                for m in bar:
+                    full_msgs.append(client.get_message(m.id))
+            _export_messages(full_msgs, export)
+            fmt.info(f"Dados exportados com sucesso para: {export}")
+        else:
+            fmt.list_messages(msgs)
     except (AuthError, GmailError) as e:
         fmt.error(str(e))
 
