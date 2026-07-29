@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from click.testing import CliRunner
 
-from gmail_cli import GmailClient, GmailError, cli
+from gmail_cli import GmailClient, GmailError, ProviderConfig, cli
 from gmail_cli.auth import AuthError
 from gmail_cli.cli import _create_client
 from gmail_cli.models import Draft, Label, Message
@@ -525,3 +525,126 @@ class TestSearch:
         mock_client.list_messages.side_effect = GmailError("fail")
         result = invoke(runner, ["search", "-q", "from:a"], mock_client)
         assert "fail" in result.output
+
+
+class TestQuery:
+    def test_no_provider_shows_error(self, runner, mock_client):
+        with patch("gmail_cli.cli.load_config") as mock_load:
+            mock_load.return_value = ProviderConfig(provider="openai")
+            with patch("gmail_cli.cli.create_provider") as mock_create:
+                mock_create.side_effect = ValueError("API_KEY not configured")
+                result = runner.invoke(cli, ["query", "test"])
+                assert "API_KEY" in result.output
+
+    def test_displays_generated_query(self, runner, mock_client):
+        mock_provider = MagicMock()
+        mock_provider.generate_query.return_value = 'from:"john"'
+        with patch("gmail_cli.cli.load_config") as mock_load:
+            mock_load.return_value = ProviderConfig(provider="ollama")
+            with patch("gmail_cli.cli.create_provider", return_value=mock_provider):
+                result = runner.invoke(cli, ["query", "emails", "from", "john"])
+                assert 'from:"john"' in result.output
+
+    def test_run_flag_executes_search(self, runner, mock_client):
+        mock_provider = MagicMock()
+        mock_provider.generate_query.return_value = "is:unread"
+        with (
+            patch("gmail_cli.cli.load_config") as mock_load,
+            patch("gmail_cli.cli._create_client", return_value=mock_client),
+            patch("gmail_cli.cli.create_provider", return_value=mock_provider),
+        ):
+            mock_load.return_value = ProviderConfig(provider="ollama")
+            mock_client.list_messages.return_value = [
+                Message(
+                    id="1", thread_id="t1", from_="a@b.com", subject="Unread", date="2026-01-01"
+                )
+            ]
+            result = runner.invoke(cli, ["query", "unread", "emails", "--run"])
+            assert "Unread" in result.output
+            mock_client.list_messages.assert_called_once_with(query="is:unread", max_results=20)
+
+    def test_run_no_results(self, runner, mock_client):
+        mock_provider = MagicMock()
+        mock_provider.generate_query.return_value = "is:unread"
+        with (
+            patch("gmail_cli.cli.load_config") as mock_load,
+            patch("gmail_cli.cli._create_client", return_value=mock_client),
+            patch("gmail_cli.cli.create_provider", return_value=mock_provider),
+        ):
+            mock_load.return_value = ProviderConfig(provider="ollama")
+            mock_client.list_messages.return_value = []
+            result = runner.invoke(cli, ["query", "unread", "--run"])
+            assert "Nenhum resultado" in result.output
+
+    def test_empty_query_from_provider(self, runner, mock_client):
+        mock_provider = MagicMock()
+        mock_provider.generate_query.return_value = ""
+        with (
+            patch("gmail_cli.cli.load_config") as mock_load,
+            patch("gmail_cli.cli.create_provider", return_value=mock_provider),
+        ):
+            mock_load.return_value = ProviderConfig(provider="ollama")
+            result = runner.invoke(cli, ["query", "something"])
+            assert "Não foi possível" in result.output
+
+    def test_gmail_error_during_run(self, runner, mock_client):
+        mock_provider = MagicMock()
+        mock_provider.generate_query.return_value = "query"
+        with (
+            patch("gmail_cli.cli.load_config") as mock_load,
+            patch("gmail_cli.cli._create_client", return_value=mock_client),
+            patch("gmail_cli.cli.create_provider", return_value=mock_provider),
+        ):
+            mock_load.return_value = ProviderConfig(provider="ollama")
+            mock_client.list_messages.side_effect = GmailError("gmail fail")
+            result = runner.invoke(cli, ["query", "test", "--run"])
+            assert "gmail fail" in result.output
+
+
+class TestConfig:
+    def test_show_defaults(self, runner):
+        with patch("gmail_cli.cli.load_config") as mock_load:
+            mock_load.return_value = ProviderConfig()
+            result = runner.invoke(cli, ["config", "show"])
+            assert "ollama" in result.output
+            assert "http://localhost:11434" in result.output
+
+    def test_show_with_api_key_masks(self, runner):
+        with patch("gmail_cli.cli.load_config") as mock_load:
+            mock_load.return_value = ProviderConfig(provider="openai", api_key="sk-secret123")
+            result = runner.invoke(cli, ["config", "show"])
+            assert "sk-secre" in result.output
+            assert "sk-secret123" not in result.output
+
+    def test_show_gemini(self, runner):
+        with patch("gmail_cli.cli.load_config") as mock_load:
+            mock_load.return_value = ProviderConfig(
+                provider="gemini", api_key="secret-gemini-key-long"
+            )
+            result = runner.invoke(cli, ["config", "show"])
+            assert "gemini" in result.output
+            assert "secret-gemini-key-long" not in result.output
+
+    def test_set_saves_config(self, runner):
+        with (
+            patch("gmail_cli.cli.save_config") as mock_save,
+            patch("gmail_cli.cli.load_config") as mock_load,
+        ):
+            mock_load.return_value = ProviderConfig()
+            result = runner.invoke(
+                cli, ["config", "set", "--provider", "openai", "--api-key", "sk-test"]
+            )
+            assert "salva" in result.output
+            saved = mock_save.call_args[0][0]
+            assert saved.provider == "openai"
+            assert saved.api_key == "sk-test"
+
+    def test_set_ollama_url(self, runner):
+        with (
+            patch("gmail_cli.cli.save_config") as mock_save,
+            patch("gmail_cli.cli.load_config") as mock_load,
+        ):
+            mock_load.return_value = ProviderConfig()
+            runner.invoke(cli, ["config", "set", "--ollama-url", "http://ollama.local:8080"])
+            saved = mock_save.call_args[0][0]
+            assert saved.ollama_url == "http://ollama.local:8080"

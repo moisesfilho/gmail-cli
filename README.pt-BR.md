@@ -115,6 +115,41 @@ gmail attachments <message_id>
 gmail attachments <message_id> -o ./downloads
 ```
 
+### Consulta em Linguagem Natural
+
+```bash
+# Gera uma query Gmail a partir de linguagem natural
+gmail query "emails do Joao da semana passada com anexos"
+
+# Gera e executa a busca
+gmail query "emails nao lidos sobre reuniao" --run
+
+# Busca com filtros de data
+gmail query "emails de fevereiro com assunto relatorio"
+```
+
+### Configuração dos Provedores
+
+```bash
+# Ver configuração atual
+gmail config show
+
+# Usar OpenAI
+gmail config set --provider openai --api-key sk-xxxxx
+
+# Usar Google Gemini
+gmail config set --provider gemini --api-key g-xxxxx
+
+# Usar Ollama local (padrão)
+gmail config set --provider ollama --ollama-url http://localhost:11434
+
+# Customizar modelo por provedor
+gmail config set --openai-model gpt-4 --ollama-model llama3.1
+```
+
+A configuração é salva em `~/.gmail_cli_config.json`.
+Variáveis de ambiente sobrescrevem o arquivo: `GMAIL_CLI_PROVIDER`, `GMAIL_CLI_API_KEY`, `GMAIL_CLI_OLLAMA_URL`, `GMAIL_CLI_OLLAMA_MODEL`, `GMAIL_CLI_OPENAI_MODEL`, `GMAIL_CLI_GEMINI_MODEL`.
+
 ## Estrutura do Projeto
 
 ```
@@ -127,14 +162,16 @@ gmail-cli/
 │       ├── cli.py         # Interface CLI (click)
 │       ├── formatter.py   # Formatação de saída (CliFormatter)
 │       ├── gmail_client.py# Wrapper da API Gmail (GmailClient)
-│       └── models.py      # Dataclasses: Message, Label, Draft
+│       ├── models.py      # Dataclasses: Message, Label, Draft
+│       └── providers/     # Provedores LLM (OpenAI, Gemini, Ollama)
 ├── tests/
 │   ├── conftest.py        # Fixtures compartilhadas
 │   ├── test_auth.py
 │   ├── test_cli.py        # Testes via Click CliRunner
 │   ├── test_formatter.py
 │   ├── test_gmail_client.py
-│   └── test_models.py
+│   ├── test_models.py
+│   └── test_providers.py
 ├── pyproject.toml          # Config (ruff, pytest, packaging)
 ├── README.md               # English version
 └── README.pt-BR.md         # Este arquivo
@@ -143,7 +180,7 @@ gmail-cli/
 ## Testes
 
 ```bash
-pytest                    # 134 testes
+pytest                    # 165 testes
 pytest --cov=             # Cobertura (100%)
 ```
 

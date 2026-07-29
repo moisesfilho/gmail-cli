@@ -4,6 +4,7 @@ import click
 from .auth import AuthError, AuthService
 from .formatter import CliFormatter
 from .gmail_client import GmailClient, GmailError
+from .providers import create_provider, load_config, save_config
 
 
 def _create_client():
@@ -333,6 +334,84 @@ def search(query, max_results):
             return
         fmt.list_messages(msgs)
     except (AuthError, GmailError) as e:
+        fmt.error(str(e))
+
+
+@cli.group()
+def config():
+    """Gerenciar configuração dos provedores de IA."""
+    pass
+
+
+@config.command("show")
+def config_show():
+    """Exibir configuração atual."""
+    cfg = load_config()
+    fmt.info(f"Provedor: {cfg.provider}")
+    if cfg.api_key:
+        fmt.info(f"API Key: {cfg.api_key[:8]}...")
+    if cfg.provider == "ollama":
+        fmt.info(f"Ollama URL: {cfg.ollama_url}")
+        fmt.info(f"Modelo: {cfg.ollama_model}")
+    elif cfg.provider == "openai":
+        fmt.info(f"Modelo: {cfg.openai_model}")
+    elif cfg.provider == "gemini":
+        fmt.info(f"Modelo: {cfg.gemini_model}")
+
+
+@config.command("set")
+@click.option("--provider", type=click.Choice(["openai", "gemini", "ollama"]))
+@click.option("--api-key")
+@click.option("--ollama-url", default="http://localhost:11434")
+@click.option("--ollama-model", default="llama3.2")
+@click.option("--openai-model", default="gpt-4o-mini")
+@click.option("--gemini-model", default="gemini-2.0-flash")
+def config_set(**kwargs):
+    """Definir configuração."""
+    cfg = load_config()
+    if kwargs.get("provider"):
+        cfg.provider = kwargs["provider"]
+    if kwargs.get("api_key"):
+        cfg.api_key = kwargs["api_key"]
+    cfg.ollama_url = kwargs.get("ollama_url", cfg.ollama_url)
+    cfg.ollama_model = kwargs.get("ollama_model", cfg.ollama_model)
+    cfg.openai_model = kwargs.get("openai_model", cfg.openai_model)
+    cfg.gemini_model = kwargs.get("gemini_model", cfg.gemini_model)
+    save_config(cfg)
+    fmt.info("Configuração salva em ~/.gmail_cli_config.json")
+
+
+@cli.command()
+@click.argument("text", nargs=-1, required=True)
+@click.option("--run", "-r", is_flag=True, help="Executar a busca após gerar a query")
+@click.option("--max", "max_results", default=20, help="Número máximo de resultados")
+def query(text, run, max_results):
+    """Converter linguagem natural em query do Gmail.
+
+    Exemplos:
+
+      gmail query "emails do Joao da semana passada"
+
+      gmail query "anexos de fevereiro com assunto relatorio" --run
+    """
+    try:
+        cfg = load_config()
+        provider = create_provider(cfg)
+        natural = " ".join(text)
+        fmt.info(f"Gerando query para: {natural}")
+        generated = provider.generate_query(natural)
+        if not generated:
+            fmt.error("Não foi possível gerar uma query.")
+            return
+        fmt.info(f"\nQuery gerada: {generated}\n")
+        if run:
+            client = _create_client()
+            msgs = client.list_messages(query=generated, max_results=max_results)
+            if not msgs:
+                fmt.info("Nenhum resultado encontrado.")
+                return
+            fmt.list_messages(msgs)
+    except (AuthError, GmailError, ValueError, ConnectionError, TimeoutError) as e:
         fmt.error(str(e))
 
 
