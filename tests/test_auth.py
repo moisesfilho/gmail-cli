@@ -2,7 +2,8 @@ from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
 
-from gmail_cli import AuthError, AuthService
+from gmail_cli import AuthService, CredentialsNotFoundError
+from gmail_cli.auth import _open_guide_and_wait, wait_for_file
 
 
 class TestAuthService:
@@ -60,9 +61,13 @@ class TestAuthService:
         assert result is None
 
     def test_create_from_oauth_flow_raises_without_file(self):
-        with patch("os.path.exists", return_value=False):
+        with (
+            patch("os.path.exists", return_value=False),
+            patch("gmail_cli.auth._open_guide_and_wait") as mock_guide,
+        ):
+            mock_guide.side_effect = CredentialsNotFoundError("no file")
             service = AuthService()
-            with pytest.raises(AuthError):
+            with pytest.raises(CredentialsNotFoundError):
                 service._create_from_oauth_flow()
 
     def test_create_from_oauth_flow_success(self):
@@ -131,3 +136,54 @@ class TestAuthService:
             result = service.get_service()
             assert result == mock_build.return_value
             mock_create.assert_called_once()
+
+    def test_login(self):
+        mock_creds = MagicMock()
+        with (
+            patch.object(AuthService, "_create_from_oauth_flow", return_value=mock_creds),
+            patch.object(AuthService, "_save_credentials") as mock_save,
+        ):
+            service = AuthService()
+            service.login()
+            mock_save.assert_called_once_with(mock_creds)
+
+    def test_revoke_with_token(self):
+        mock_creds = MagicMock()
+        with (
+            patch.object(AuthService, "_load_credentials", return_value=mock_creds),
+            patch("os.path.exists", return_value=True),
+            patch("os.remove") as mock_remove,
+        ):
+            service = AuthService()
+            service.revoke()
+            mock_creds.revoke.assert_called_once()
+            mock_remove.assert_called_once_with(service.TOKEN_FILE)
+
+    def test_revoke_without_token(self):
+        with patch.object(AuthService, "_load_credentials", return_value=None):
+            service = AuthService()
+            service.revoke()
+
+
+class TestWaitForFile:
+    def test_finds_file(self):
+        with patch("os.path.exists", return_value=True):
+            wait_for_file("/some/file", timeout=1)
+
+    def test_timeout_raises(self):
+        with (
+            patch("os.path.exists", return_value=False),
+            pytest.raises(CredentialsNotFoundError),
+        ):
+            wait_for_file("/some/file", timeout=1)
+
+
+class TestOpenGuide:
+    def test_prints_and_waits(self):
+        with (
+            patch("click.prompt", return_value=""),
+            patch("webbrowser.open"),
+            patch("gmail_cli.auth.wait_for_file") as mock_wait,
+        ):
+            _open_guide_and_wait()
+            mock_wait.assert_called_once()

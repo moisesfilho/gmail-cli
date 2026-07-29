@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+import os
+import shlex
+
 import click
 
 from .auth import AuthError, AuthService
@@ -19,17 +22,39 @@ def cli():
     pass
 
 
-@cli.command()
-def auth_url():
-    """Exibe instruções para configurar a autenticação OAuth 2.0."""
-    fmt.info(
-        "Para usar este CLI, você precisa de um arquivo de credenciais OAuth 2.0.\n\n"
-        "1. Acesse https://console.cloud.google.com/\n"
-        "2. Crie um projeto e ative a Gmail API\n"
-        "3. Em 'Credenciais', crie uma credencial OAuth 2.0 do tipo 'Aplicativo para desktop'\n"
-        "4. Baixe o JSON e salve como ~/.gmail_cli_credentials.json\n"
-        "5. Execute qualquer comando (ex: 'gmail list') para autenticar"
-    )
+@cli.group()
+def auth():
+    """Gerenciar autenticação OAuth 2.0."""
+    pass
+
+
+@auth.command("login")
+def auth_login():
+    """Autenticar no Gmail (abre o navegador)."""
+    AuthService().login()
+    fmt.info("Autenticação concluída! Token salvo em ~/.gmail_cli_token.json")
+
+
+@auth.command("logout")
+def auth_logout():
+    """Remover token de autenticação."""
+    svc = AuthService()
+    svc.revoke()
+    fmt.info("Token removido.")
+
+
+@auth.command("status")
+def auth_status():
+    """Verificar status da autenticação."""
+    svc = AuthService()
+    if svc._load_credentials():
+        fmt.info("Autenticado — token encontrado em ~/.gmail_cli_token.json")
+    elif os.path.exists(svc.CREDENTIALS_FILE):
+        fmt.info("Credenciais encontradas, mas token ainda não gerado.")
+        fmt.info("Execute 'gmail auth login' para autenticar.")
+    else:
+        fmt.info("Nenhuma credencial encontrada.")
+        fmt.info("Execute 'gmail auth login' para configurar.")
 
 
 @cli.group(name="list")
@@ -381,36 +406,86 @@ def config_set(**kwargs):
     fmt.info("Configuração salva em ~/.gmail_cli_config.json")
 
 
+def _build_commands_help(ctx: click.Context) -> str:
+    def build_help(cmd, ctx, path=None):
+        if path is None:
+            path = []
+        name = "gmail" if not path else cmd.name
+        if name == "prompt":
+            return ""
+
+        current_path = path + [name]
+        full_name = " ".join(current_path)
+
+        if not path:
+            sub_ctx = ctx
+        else:
+            sub_ctx = click.Context(cmd, info_name=name, parent=ctx)
+
+        lines = []
+        lines.append(f"Command: {full_name}")
+        help_text = cmd.get_help(sub_ctx)
+        lines.append(help_text)
+        lines.append("-" * 40)
+
+        if isinstance(cmd, click.Group):
+            for sub_name, sub_cmd in cmd.commands.items():
+                if sub_name == "prompt":
+                    continue
+                sub_help = build_help(sub_cmd, sub_ctx, current_path)
+                if sub_help:
+                    lines.append(sub_help)
+
+        return "\n".join(lines)
+
+    root_ctx = ctx.find_root()
+    return build_help(root_ctx.command, root_ctx)
+
+
 @cli.command()
 @click.argument("text", nargs=-1, required=True)
-@click.option("--run", "-r", is_flag=True, help="Executar a busca após gerar a query")
-@click.option("--max", "max_results", default=20, help="Número máximo de resultados")
-def query(text, run, max_results):
-    """Converter linguagem natural em query do Gmail.
-
-    Exemplos:
-
-      gmail query "emails do Joao da semana passada"
-
-      gmail query "anexos de fevereiro com assunto relatorio" --run
-    """
+@click.option("--yes", "-y", is_flag=True, help="Executar diretamente sem pedir confirmação")
+@click.pass_context
+def prompt(ctx, text, yes):
+    """Converter linguagem natural em comando do gmail-cli."""
     try:
         cfg = load_config()
         provider = create_provider(cfg)
         natural = " ".join(text)
-        fmt.info(f"Gerando query para: {natural}")
-        generated = provider.generate_query(natural)
+        fmt.info(f"Gerando comando para: {natural}")
+
+        commands_help = _build_commands_help(ctx)
+        generated = provider.generate_command(natural, commands_help)
+
         if not generated:
-            fmt.error("Não foi possível gerar uma query.")
+            fmt.error("Não foi possível gerar um comando.")
             return
-        fmt.info(f"\nQuery gerada: {generated}\n")
-        if run:
-            client = _create_client()
-            msgs = client.list_messages(query=generated, max_results=max_results)
-            if not msgs:
-                fmt.info("Nenhum resultado encontrado.")
-                return
-            fmt.list_messages(msgs)
+
+        highlighted = click.style(generated, fg="cyan", bold=True)
+        fmt.info(f"\nComando sugerido: {highlighted}\n")
+
+        should_run = yes or click.confirm("Deseja executar o comando sugerido?", default=True)
+
+        if should_run:
+            cmd_to_run = generated.strip()
+            if cmd_to_run.startswith("gmail "):
+                cmd_to_run = cmd_to_run[len("gmail "):].strip()
+            elif cmd_to_run.startswith("gmail"):
+                cmd_to_run = cmd_to_run[len("gmail"):].strip()
+
+            args_list = shlex.split(cmd_to_run)
+
+            try:
+                ctx.find_root().command.main(args=args_list, standalone_mode=False)
+            except click.ClickException as e:
+                fmt.error(e.format_message())
+            except click.Abort:
+                fmt.info("Operação abortada.")
+            except SystemExit as e:
+                if e.code != 0:
+                    fmt.error(f"O comando saiu com código {e.code}")
+            except Exception as e:
+                fmt.error(f"Erro inesperado: {str(e)}")
     except (AuthError, GmailError, ValueError, ConnectionError, TimeoutError) as e:
         fmt.error(str(e))
 

@@ -48,11 +48,49 @@ class TestEntryPoint:
             assert client._service is mock_service
 
 
-class TestAuthUrl:
-    def test_shows_instructions(self, runner):
-        result = runner.invoke(cli, ["auth-url"])
-        assert result.exit_code == 0
-        assert "console.cloud.google.com" in result.output
+class TestAuthLogout:
+    def test_logout(self, runner):
+        with patch("gmail_cli.cli.AuthService") as mock_svc:
+            svc_instance = mock_svc.return_value
+            result = runner.invoke(cli, ["auth", "logout"])
+            assert "removido" in result.output or "Token" in result.output
+            svc_instance.revoke.assert_called_once()
+
+
+class TestAuthStatus:
+    def test_status_authenticated(self, runner):
+        with patch("gmail_cli.cli.AuthService") as mock_svc:
+            svc_instance = mock_svc.return_value
+            svc_instance._load_credentials.return_value = MagicMock()
+            result = runner.invoke(cli, ["auth", "status"])
+            assert "Autenticado" in result.output
+
+    def test_status_credentials_found(self, runner):
+        with patch("gmail_cli.cli.AuthService") as mock_svc:
+            svc_instance = mock_svc.return_value
+            svc_instance._load_credentials.return_value = None
+            svc_instance.CREDENTIALS_FILE = "/fake/path"
+            with patch("os.path.exists", return_value=True):
+                result = runner.invoke(cli, ["auth", "status"])
+                assert "credenciais encontradas" in result.output.lower()
+
+    def test_status_no_credentials(self, runner):
+        with patch("gmail_cli.cli.AuthService") as mock_svc:
+            svc_instance = mock_svc.return_value
+            svc_instance._load_credentials.return_value = None
+            svc_instance.CREDENTIALS_FILE = "/fake/path"
+            with patch("os.path.exists", return_value=False):
+                result = runner.invoke(cli, ["auth", "status"])
+                assert "Nenhuma credencial" in result.output
+
+
+class TestAuthLogin:
+    def test_login(self, runner):
+        with patch("gmail_cli.cli.AuthService") as mock_svc:
+            svc_instance = mock_svc.return_value
+            result = runner.invoke(cli, ["auth", "login"])
+            assert "conclu" in result.output
+            svc_instance.login.assert_called_once()
 
 
 class TestListMessages:
@@ -527,27 +565,46 @@ class TestSearch:
         assert "fail" in result.output
 
 
-class TestQuery:
+class TestPrompt:
     def test_no_provider_shows_error(self, runner, mock_client):
         with patch("gmail_cli.cli.load_config") as mock_load:
             mock_load.return_value = ProviderConfig(provider="openai")
             with patch("gmail_cli.cli.create_provider") as mock_create:
                 mock_create.side_effect = ValueError("API_KEY not configured")
-                result = runner.invoke(cli, ["query", "test"])
+                result = runner.invoke(cli, ["prompt", "test"])
                 assert "API_KEY" in result.output
 
-    def test_displays_generated_query(self, runner, mock_client):
+    def test_displays_generated_command(self, runner, mock_client):
         mock_provider = MagicMock()
-        mock_provider.generate_query.return_value = 'from:"john"'
+        mock_provider.generate_command.return_value = "gmail search --query 'from:john'"
         with patch("gmail_cli.cli.load_config") as mock_load:
             mock_load.return_value = ProviderConfig(provider="ollama")
             with patch("gmail_cli.cli.create_provider", return_value=mock_provider):
-                result = runner.invoke(cli, ["query", "emails", "from", "john"])
-                assert 'from:"john"' in result.output
+                result = runner.invoke(cli, ["prompt", "emails", "from", "john"], input="n\n")
+                assert "gmail search --query 'from:john'" in result.output
+                assert "Deseja executar o comando sugerido?" in result.output
+                mock_provider.generate_command.assert_called_once()
+                args, kwargs = mock_provider.generate_command.call_args
+                assert args[0] == "emails from john"
+                assert "Command: gmail search" in args[1]
+                assert "Command: gmail prompt" not in args[1]
 
-    def test_run_flag_executes_search(self, runner, mock_client):
+    def test_prompt_declines_execution(self, runner, mock_client):
         mock_provider = MagicMock()
-        mock_provider.generate_query.return_value = "is:unread"
+        mock_provider.generate_command.return_value = "gmail search --query 'is:unread'"
+        with (
+            patch("gmail_cli.cli.load_config") as mock_load,
+            patch("gmail_cli.cli._create_client", return_value=mock_client),
+            patch("gmail_cli.cli.create_provider", return_value=mock_provider),
+        ):
+            mock_load.return_value = ProviderConfig(provider="ollama")
+            result = runner.invoke(cli, ["prompt", "unread", "emails"], input="n\n")
+            assert "Deseja executar o comando sugerido?" in result.output
+            mock_client.list_messages.assert_not_called()
+
+    def test_prompt_accepts_execution_by_confirming(self, runner, mock_client):
+        mock_provider = MagicMock()
+        mock_provider.generate_command.return_value = "gmail search --query 'is:unread'"
         with (
             patch("gmail_cli.cli.load_config") as mock_load,
             patch("gmail_cli.cli._create_client", return_value=mock_client),
@@ -559,46 +616,53 @@ class TestQuery:
                     id="1", thread_id="t1", from_="a@b.com", subject="Unread", date="2026-01-01"
                 )
             ]
-            result = runner.invoke(cli, ["query", "unread", "emails", "--run"])
+            result = runner.invoke(cli, ["prompt", "unread", "emails"], input="y\n")
+            assert "Deseja executar o comando sugerido?" in result.output
             assert "Unread" in result.output
             mock_client.list_messages.assert_called_once_with(query="is:unread", max_results=20)
 
-    def test_run_no_results(self, runner, mock_client):
+    def test_yes_flag_executes_directly(self, runner, mock_client):
         mock_provider = MagicMock()
-        mock_provider.generate_query.return_value = "is:unread"
+        mock_provider.generate_command.return_value = "gmail search --query 'is:unread'"
         with (
             patch("gmail_cli.cli.load_config") as mock_load,
             patch("gmail_cli.cli._create_client", return_value=mock_client),
             patch("gmail_cli.cli.create_provider", return_value=mock_provider),
         ):
             mock_load.return_value = ProviderConfig(provider="ollama")
-            mock_client.list_messages.return_value = []
-            result = runner.invoke(cli, ["query", "unread", "--run"])
-            assert "Nenhum resultado" in result.output
+            mock_client.list_messages.return_value = [
+                Message(
+                    id="1", thread_id="t1", from_="a@b.com", subject="Unread", date="2026-01-01"
+                )
+            ]
+            result = runner.invoke(cli, ["prompt", "unread", "emails", "--yes"])
+            assert "Deseja executar o comando sugerido?" not in result.output
+            assert "Unread" in result.output
+            mock_client.list_messages.assert_called_once_with(query="is:unread", max_results=20)
 
-    def test_empty_query_from_provider(self, runner, mock_client):
+    def test_empty_command_from_provider(self, runner, mock_client):
         mock_provider = MagicMock()
-        mock_provider.generate_query.return_value = ""
+        mock_provider.generate_command.return_value = ""
         with (
             patch("gmail_cli.cli.load_config") as mock_load,
             patch("gmail_cli.cli.create_provider", return_value=mock_provider),
         ):
             mock_load.return_value = ProviderConfig(provider="ollama")
-            result = runner.invoke(cli, ["query", "something"])
+            result = runner.invoke(cli, ["prompt", "something"])
             assert "Não foi possível" in result.output
 
-    def test_gmail_error_during_run(self, runner, mock_client):
+    def test_click_exception_handling(self, runner, mock_client):
         mock_provider = MagicMock()
-        mock_provider.generate_query.return_value = "query"
+        mock_provider.generate_command.return_value = "gmail invalid-command-name"
         with (
             patch("gmail_cli.cli.load_config") as mock_load,
-            patch("gmail_cli.cli._create_client", return_value=mock_client),
             patch("gmail_cli.cli.create_provider", return_value=mock_provider),
         ):
             mock_load.return_value = ProviderConfig(provider="ollama")
-            mock_client.list_messages.side_effect = GmailError("gmail fail")
-            result = runner.invoke(cli, ["query", "test", "--run"])
-            assert "gmail fail" in result.output
+            result = runner.invoke(cli, ["prompt", "test", "--yes"])
+            assert "Erro: No such command 'invalid-command-name'" in result.output
+
+
 
 
 class TestConfig:

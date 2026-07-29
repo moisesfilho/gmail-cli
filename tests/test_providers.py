@@ -15,7 +15,7 @@ from gmail_cli.providers import (
     load_config,
     save_config,
 )
-from gmail_cli.providers.base import SYSTEM_PROMPT
+from gmail_cli.providers.base import COMMAND_SYSTEM_PROMPT, SYSTEM_PROMPT
 
 
 class TestSystemPrompt:
@@ -188,6 +188,22 @@ class TestOpenAIProvider:
             with pytest.raises(requests.ConnectionError):
                 provider.generate_query("test")
 
+    def test_generate_command(self):
+        provider = OpenAIProvider(api_key="sk-test")
+        with patch.object(requests, "post") as mock_post:
+            mock_resp = MagicMock()
+            mock_resp.json.return_value = {
+                "choices": [{"message": {"content": "gmail search --query 'from:john'"}}]
+            }
+            mock_post.return_value = mock_resp
+
+            result = provider.generate_command("emails from John", "help text")
+            assert result == "gmail search --query 'from:john'"
+            mock_post.assert_called_once()
+            call_kwargs = mock_post.call_args.kwargs
+            assert call_kwargs["json"]["messages"][0]["content"] == COMMAND_SYSTEM_PROMPT.format(commands_help="help text")
+            assert call_kwargs["json"]["messages"][1]["content"] == "emails from John"
+
 
 class TestGeminiProvider:
     def test_generate_query(self):
@@ -205,6 +221,17 @@ class TestGeminiProvider:
             mock_post.side_effect = requests.ConnectionError("failed")
             with pytest.raises(requests.ConnectionError):
                 provider.generate_query("test")
+
+    def test_generate_command(self):
+        provider = GeminiProvider(api_key="gem-key")
+        with patch.object(requests, "post") as mock_post:
+            mock_post.return_value = GenerativeResponse("gmail list labels")
+
+            result = provider.generate_command("list labels", "help text")
+            assert result == "gmail list labels"
+            assert "gem-key" in mock_post.call_args.kwargs["params"]["key"]
+            expected_prompt = COMMAND_SYSTEM_PROMPT.format(commands_help="help text") + "\n\n" + "list labels"
+            assert mock_post.call_args.kwargs["json"]["contents"][0]["parts"][0]["text"] == expected_prompt
 
 
 class TestOllamaProvider:
@@ -231,3 +258,15 @@ class TestOllamaProvider:
             mock_post.side_effect = requests.ConnectionError("failed")
             with pytest.raises(requests.ConnectionError):
                 provider.generate_query("test")
+
+    def test_generate_command(self):
+        provider = OllamaProvider()
+        with patch.object(requests, "post") as mock_post:
+            mock_post.return_value = ChatResponse("gmail search")
+
+            result = provider.generate_command("search emails", "help text")
+            assert result == "gmail search"
+            assert mock_post.call_args.args[0] == "http://localhost:11434/api/chat"
+            call_kwargs = mock_post.call_args.kwargs
+            assert call_kwargs["json"]["messages"][0]["content"] == COMMAND_SYSTEM_PROMPT.format(commands_help="help text")
+            assert call_kwargs["json"]["messages"][1]["content"] == "search emails"

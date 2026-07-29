@@ -1,10 +1,10 @@
 # gmail-cli
 
 <p>
-  <img src="https://img.shields.io/badge/version-v1.0.0--alpha-blue" alt="Version">
+  <img src="https://img.shields.io/badge/version-v1.1.0--alpha-blue" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python">
-  <img src="https://img.shields.io/badge/tests-134%20passing-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-179%20passing-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/coverage-100%25-brightgreen" alt="Coverage">
 </p>
 
@@ -115,17 +115,15 @@ gmail attachments <message_id>
 gmail attachments <message_id> -o ./downloads
 ```
 
-### Natural Language Query
+### Natural Language Command Prompt
 
 ```bash
-# Generate a Gmail query from natural language
-gmail query "emails from John last week with attachments"
+# Generate and confirm execution of a command (asks for confirmation by default)
+gmail prompt "list my labels"
 
-# Generate and run the search
-gmail query "unread emails about meeting" --run
-
-# Search with date filters
-gmail query "emails from february with subject relatorio"
+# Run the command directly (yes by default, bypassing confirmation)
+gmail prompt "mark message 123abc as read" --yes
+gmail prompt "delete emails from John" -y
 ```
 
 ### Provider Configuration
@@ -180,7 +178,7 @@ gmail-cli/
 ## Tests
 
 ```bash
-pytest                    # 165 tests
+pytest                    # 179 tests
 pytest --cov=             # Coverage (100%)
 ```
 

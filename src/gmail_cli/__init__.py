@@ -1,6 +1,6 @@
-__version__ = "1.0.0-alpha"
+__version__ = "1.1.0-alpha"
 
-from .auth import AuthError, AuthService
+from .auth import AuthError, AuthService, CredentialsNotFoundError
 from .cli import cli
 from .formatter import CliFormatter
 from .gmail_client import GmailClient, GmailError
@@ -20,6 +20,7 @@ __all__ = [
     "AuthError",
     "AuthService",
     "CliFormatter",
+    "CredentialsNotFoundError",
     "Draft",
     "GeminiProvider",
     "GmailClient",
