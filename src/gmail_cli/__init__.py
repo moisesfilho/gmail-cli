@@ -1,3 +1,5 @@
+__version__ = "1.0.0-alpha"
+
 from .auth import AuthError, AuthService
 from .cli import cli
 from .formatter import CliFormatter

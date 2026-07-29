@@ -1,5 +1,6 @@
 # gmail-cli
 
+**Version:** `v1.0.0-alpha`
 **Languages:** [English](#) | [Português](README.pt-BR.md)
 
 CLI to manage Gmail emails, labels, drafts, and attachments from the terminal.

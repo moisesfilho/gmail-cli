@@ -1,5 +1,6 @@
 # gmail-cli
 
+**Versão:** `v1.0.0-alpha`
 **Idiomas:** [English](README.md) | [Português](#)
 
 CLI para gerenciar e-mail, labels, rascunhos e anexos do Gmail via terminal.
