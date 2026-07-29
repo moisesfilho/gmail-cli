@@ -38,23 +38,7 @@ jobs:
         run: bandit -r src/gmail_cli/
 
       - name: Test with coverage
-        run: pytest --cov=src/gmail_cli/ --cov-report=xml --cov-report=term-missing --cov-omit=src/gmail_cli/__main__.py
-
-      - name: Coverage gate
-        run: |
-          coverage=$(python -c "import xml.etree.ElementTree as ET; root=ET.parse('coverage.xml').getroot(); print(root.attrib['line-rate'])")
-          pct=$(echo "$coverage * 100" | bc -l | xargs printf "%.1f")
-          echo "## Coverage Summary" >> $GITHUB_STEP_SUMMARY
-          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Line Coverage | ${pct}% |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Python | ${{ matrix.python-version }} |" >> $GITHUB_STEP_SUMMARY
-          if (( $(echo "$coverage < 1.0" | bc -l) )); then
-            echo "❌ Coverage ${pct}% — minimum required is 100%"
-            exit 1
-          fi
-          echo "✅ Coverage ${pct}% — gate passed"
+        run: pytest --cov=src/gmail_cli/ --cov-report=xml --cov-report=term-missing --cov-fail-under=100
 
       - name: Test summary
         if: always()
