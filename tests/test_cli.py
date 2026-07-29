@@ -2,6 +2,7 @@ import subprocess
 import sys
 from unittest.mock import MagicMock, patch
 
+import click
 import pytest
 from click.testing import CliRunner
 
@@ -654,13 +655,113 @@ class TestPrompt:
     def test_click_exception_handling(self, runner, mock_client):
         mock_provider = MagicMock()
         mock_provider.generate_command.return_value = "gmail invalid-command-name"
+        original_main = cli.main
+        def side_effect(args=None, **kwargs):
+            if args and "prompt" in args:
+                return original_main(args=args, **kwargs)
+            raise click.ClickException("No such command 'invalid-command-name'")
+
         with (
             patch("gmail_cli.cli.load_config") as mock_load,
             patch("gmail_cli.cli.create_provider", return_value=mock_provider),
+            patch.object(cli, "main", side_effect=side_effect),
         ):
             mock_load.return_value = ProviderConfig(provider="ollama")
             result = runner.invoke(cli, ["prompt", "test", "--yes"])
             assert "Erro: No such command 'invalid-command-name'" in result.output
+
+    def test_prompt_handles_abort(self, runner):
+        mock_provider = MagicMock()
+        mock_provider.generate_command.return_value = "gmail search"
+        original_main = cli.main
+        def side_effect(args=None, **kwargs):
+            if args and "prompt" in args:
+                return original_main(args=args, **kwargs)
+            raise click.Abort()
+
+        with (
+            patch("gmail_cli.cli.load_config") as mock_load,
+            patch("gmail_cli.cli.create_provider", return_value=mock_provider),
+            patch.object(cli, "main", side_effect=side_effect),
+        ):
+            mock_load.return_value = ProviderConfig(provider="ollama")
+            result = runner.invoke(cli, ["prompt", "test", "--yes"])
+            assert "Operação abortada" in result.output
+
+    def test_prompt_handles_system_exit_non_zero(self, runner):
+        mock_provider = MagicMock()
+        mock_provider.generate_command.return_value = "gmail search"
+        original_main = cli.main
+        def side_effect(args=None, **kwargs):
+            if args and "prompt" in args:
+                return original_main(args=args, **kwargs)
+            raise SystemExit(1)
+
+        with (
+            patch("gmail_cli.cli.load_config") as mock_load,
+            patch("gmail_cli.cli.create_provider", return_value=mock_provider),
+            patch.object(cli, "main", side_effect=side_effect),
+        ):
+            mock_load.return_value = ProviderConfig(provider="ollama")
+            result = runner.invoke(cli, ["prompt", "test", "--yes"])
+            assert "O comando saiu com código 1" in result.output
+
+    def test_prompt_handles_system_exit_zero(self, runner):
+        mock_provider = MagicMock()
+        mock_provider.generate_command.return_value = "gmail search"
+        original_main = cli.main
+        def side_effect(args=None, **kwargs):
+            if args and "prompt" in args:
+                return original_main(args=args, **kwargs)
+            raise SystemExit(0)
+
+        with (
+            patch("gmail_cli.cli.load_config") as mock_load,
+            patch("gmail_cli.cli.create_provider", return_value=mock_provider),
+            patch.object(cli, "main", side_effect=side_effect),
+        ):
+            mock_load.return_value = ProviderConfig(provider="ollama")
+            result = runner.invoke(cli, ["prompt", "test", "--yes"])
+            assert result.exit_code == 0
+
+    def test_prompt_handles_generic_exception(self, runner):
+        mock_provider = MagicMock()
+        mock_provider.generate_command.return_value = "gmail search"
+        original_main = cli.main
+        def side_effect(args=None, **kwargs):
+            if args and "prompt" in args:
+                return original_main(args=args, **kwargs)
+            raise Exception("unexpected error")
+
+        with (
+            patch("gmail_cli.cli.load_config") as mock_load,
+            patch("gmail_cli.cli.create_provider", return_value=mock_provider),
+            patch.object(cli, "main", side_effect=side_effect),
+        ):
+            mock_load.return_value = ProviderConfig(provider="ollama")
+            result = runner.invoke(cli, ["prompt", "test", "--yes"])
+            assert "Erro inesperado: unexpected error" in result.output
+
+    def test_prompt_strips_gmail_without_space(self, runner):
+        mock_provider = MagicMock()
+        mock_provider.generate_command.return_value = "gmail"
+        original_main = cli.main
+        inner_calls = []
+        def side_effect(args=None, **kwargs):
+            if args and "prompt" in args:
+                return original_main(args=args, **kwargs)
+            inner_calls.append(args)
+            return None
+
+        with (
+            patch("gmail_cli.cli.load_config") as mock_load,
+            patch("gmail_cli.cli.create_provider", return_value=mock_provider),
+            patch.object(cli, "main", side_effect=side_effect),
+        ):
+            mock_load.return_value = ProviderConfig(provider="ollama")
+            result = runner.invoke(cli, ["prompt", "test", "--yes"])
+            assert result.exit_code == 0
+            assert inner_calls == [[]]
 
 
 class TestConfig:

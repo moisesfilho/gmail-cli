@@ -411,9 +411,6 @@ def _build_commands_help(ctx: click.Context) -> str:
         if path is None:
             path = []
         name = "gmail" if not path else cmd.name
-        if name == "prompt":
-            return ""
-
         current_path = [*path, name]
         full_name = " ".join(current_path)
 
