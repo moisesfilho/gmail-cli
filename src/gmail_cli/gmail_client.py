@@ -160,10 +160,7 @@ class GmailClient:
             )
         try:
             return (
-                self._service.users()
-                .messages()
-                .modify(userId="me", id=msg_id, body=body)
-                .execute()
+                self._service.users().messages().modify(userId="me", id=msg_id, body=body).execute()
             )
         except HttpError as e:
             raise GmailError(f"Erro ao modificar mensagem: {e}")
@@ -171,10 +168,7 @@ class GmailClient:
     def list_drafts(self, max_results=20):
         try:
             result = (
-                self._service.users()
-                .drafts()
-                .list(userId="me", maxResults=max_results)
-                .execute()
+                self._service.users().drafts().list(userId="me", maxResults=max_results).execute()
             )
             return [self._build_draft_meta(d) for d in result.get("drafts", [])]
         except HttpError as e:

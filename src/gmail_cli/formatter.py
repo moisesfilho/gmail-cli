@@ -2,7 +2,6 @@ import click
 
 
 class CliFormatter:
-
     def list_message(self, msg):
         status = "📥" if msg.is_in_inbox else "📦" if not msg.is_in_trash else "🗑"
         labels = ",".join(msg.custom_labels) if msg.custom_labels else "-"

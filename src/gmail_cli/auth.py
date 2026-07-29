@@ -54,7 +54,5 @@ class AuthService:
                 "ative a Gmail API, baixe as credenciais OAuth 2.0\n"
                 "e salve como ~/.gmail_cli_credentials.json"
             )
-        flow = InstalledAppFlow.from_client_secrets_file(
-            self.CREDENTIALS_FILE, SCOPES
-        )
+        flow = InstalledAppFlow.from_client_secrets_file(self.CREDENTIALS_FILE, SCOPES)
         return flow.run_local_server(port=0)

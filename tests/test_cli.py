@@ -30,7 +30,9 @@ class TestEntryPoint:
     def test_main_block(self):
         result = subprocess.run(
             [sys.executable, "-m", "gmail_cli", "--help"],
-            capture_output=True, text=True, check=False,
+            capture_output=True,
+            text=True,
+            check=False,
         )
         assert result.returncode == 0
         assert "Usage:" in result.stdout
@@ -61,8 +63,14 @@ class TestListMessages:
     def test_with_results(self, runner, mock_client):
         mock_client.list_messages.return_value = [
             Message(
-                id="1", thread_id="t1", from_="a@b.com", subject="Hello",
-                date="2026-01-01", to="me@c.com", body="", label_ids=[],
+                id="1",
+                thread_id="t1",
+                from_="a@b.com",
+                subject="Hello",
+                date="2026-01-01",
+                to="me@c.com",
+                body="",
+                label_ids=[],
             )
         ]
         result = invoke(runner, ["list", "messages"], mock_client)
@@ -120,8 +128,11 @@ class TestListDrafts:
     def test_with_results(self, runner, mock_client):
         mock_client.list_drafts.return_value = [
             Draft(
-                id="d1", message_id="m1", from_="a@b.com",
-                subject="Draft", date="2026-01-01",
+                id="d1",
+                message_id="m1",
+                from_="a@b.com",
+                subject="Draft",
+                date="2026-01-01",
             )
         ]
         result = invoke(runner, ["list", "drafts"], mock_client)
@@ -137,8 +148,14 @@ class TestListDrafts:
 class TestShow:
     def test_success(self, runner, mock_client):
         mock_client.get_message.return_value = Message(
-            id="msg1", thread_id="t1", from_="a@b.com", subject="Subj",
-            date="2026-01-01", to="me@c.com", body="Body", label_ids=["INBOX"],
+            id="msg1",
+            thread_id="t1",
+            from_="a@b.com",
+            subject="Subj",
+            date="2026-01-01",
+            to="me@c.com",
+            body="Body",
+            label_ids=["INBOX"],
         )
         result = invoke(runner, ["show", "msg1"], mock_client)
         assert result.exit_code == 0
@@ -166,8 +183,18 @@ class TestSendMessage:
         invoke(
             runner,
             [
-                "send", "message", "--to", "b@b.com", "--subject", "S",
-                "--body", "B", "--cc", "c@c.com", "--bcc", "d@d.com",
+                "send",
+                "message",
+                "--to",
+                "b@b.com",
+                "--subject",
+                "S",
+                "--body",
+                "B",
+                "--cc",
+                "c@c.com",
+                "--bcc",
+                "d@d.com",
             ],
             mock_client,
         )
@@ -180,8 +207,16 @@ class TestSendMessage:
         invoke(
             runner,
             [
-                "send", "message", "--to", "b@b.com", "--subject", "S",
-                "--body", "B", "-a", "/tmp/f.pdf",
+                "send",
+                "message",
+                "--to",
+                "b@b.com",
+                "--subject",
+                "S",
+                "--body",
+                "B",
+                "-a",
+                "/tmp/f.pdf",
             ],
             mock_client,
         )
@@ -279,8 +314,26 @@ class TestDeleteAll:
 
     def test_trash(self, runner, mock_client):
         mock_client.list_messages.return_value = [
-            Message(id="m1", thread_id="t1", from_="a@b.com", subject="S1", date="", to="", body="", label_ids=[]),
-            Message(id="m2", thread_id="t1", from_="a@b.com", subject="S2", date="", to="", body="", label_ids=[]),
+            Message(
+                id="m1",
+                thread_id="t1",
+                from_="a@b.com",
+                subject="S1",
+                date="",
+                to="",
+                body="",
+                label_ids=[],
+            ),
+            Message(
+                id="m2",
+                thread_id="t1",
+                from_="a@b.com",
+                subject="S2",
+                date="",
+                to="",
+                body="",
+                label_ids=[],
+            ),
         ]
         result = invoke(runner, ["delete-all", "-q", "from:spam"], mock_client, input="y\n")
         assert "Deletando 2 e-mail(s)" in result.output
@@ -289,9 +342,20 @@ class TestDeleteAll:
 
     def test_permanent(self, runner, mock_client):
         mock_client.list_messages.return_value = [
-            Message(id="m1", thread_id="t1", from_="a@b.com", subject="S1", date="", to="", body="", label_ids=[]),
+            Message(
+                id="m1",
+                thread_id="t1",
+                from_="a@b.com",
+                subject="S1",
+                date="",
+                to="",
+                body="",
+                label_ids=[],
+            ),
         ]
-        result = invoke(runner, ["delete-all", "--permanent", "-q", "from:spam"], mock_client, input="y\n")
+        result = invoke(
+            runner, ["delete-all", "--permanent", "-q", "from:spam"], mock_client, input="y\n"
+        )
         assert "Deletando 1 e-mail(s)" in result.output
         mock_client.delete_message.assert_called_once_with("m1")
         mock_client.trash_message.assert_not_called()
@@ -322,7 +386,16 @@ class TestRestoreAll:
 
     def test_success(self, runner, mock_client):
         mock_client.list_messages.return_value = [
-            Message(id="m1", thread_id="t1", from_="a@b.com", subject="R1", date="", to="", body="", label_ids=["TRASH"]),
+            Message(
+                id="m1",
+                thread_id="t1",
+                from_="a@b.com",
+                subject="R1",
+                date="",
+                to="",
+                body="",
+                label_ids=["TRASH"],
+            ),
         ]
         result = invoke(runner, ["restore-all", "-q", "in:trash"], mock_client, input="y\n")
         assert "Restaurando 1 e-mail(s)" in result.output
@@ -343,15 +416,27 @@ class TestDraftCreate:
             mock_client,
         )
         assert "Rascunho criado!" in result.output
-        mock_client.create_draft.assert_called_once_with("b@b.com", "Rasc", "Corpo", cc=None, bcc=None)
+        mock_client.create_draft.assert_called_once_with(
+            "b@b.com", "Rasc", "Corpo", cc=None, bcc=None
+        )
 
     def test_with_cc_bcc(self, runner, mock_client):
         mock_client.create_draft.return_value = {"id": "d2"}
         invoke(
             runner,
             [
-                "draft", "create", "--to", "b@b.com", "--subject", "S",
-                "--body", "B", "--cc", "c@c.com", "--bcc", "d@d.com",
+                "draft",
+                "create",
+                "--to",
+                "b@b.com",
+                "--subject",
+                "S",
+                "--body",
+                "B",
+                "--cc",
+                "c@c.com",
+                "--bcc",
+                "d@d.com",
             ],
             mock_client,
         )
@@ -421,8 +506,14 @@ class TestSearch:
     def test_with_results(self, runner, mock_client):
         mock_client.list_messages.return_value = [
             Message(
-                id="1", thread_id="t1", from_="a@b.com", subject="Found",
-                date="2026-01-01", to="me@c.com", body="", label_ids=[],
+                id="1",
+                thread_id="t1",
+                from_="a@b.com",
+                subject="Found",
+                date="2026-01-01",
+                to="me@c.com",
+                body="",
+                label_ids=[],
             )
         ]
         result = invoke(runner, ["search", "-q", "from:a"], mock_client)

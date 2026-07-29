@@ -30,15 +30,26 @@ class TestMessage:
         assert "CATEGORY_PRIMARY" not in custom
 
     def test_custom_labels_empty_when_only_system(self):
-        msg = Message(id="x", thread_id="x", from_="a", subject="b", date="c",
-                      label_ids=["INBOX", "UNREAD", "CATEGORY_SOCIAL"])
+        msg = Message(
+            id="x",
+            thread_id="x",
+            from_="a",
+            subject="b",
+            date="c",
+            label_ids=["INBOX", "UNREAD", "CATEGORY_SOCIAL"],
+        )
         assert msg.custom_labels == []
 
     def test_message_creation(self):
         msg = Message(
-            id="1", thread_id="t1", from_="a@b.com",
-            subject="Olá", date="2026-01-01", to="c@d.com",
-            body="corpo", label_ids=["INBOX"]
+            id="1",
+            thread_id="t1",
+            from_="a@b.com",
+            subject="Olá",
+            date="2026-01-01",
+            to="c@d.com",
+            body="corpo",
+            label_ids=["INBOX"],
         )
         assert msg.id == "1"
         assert msg.from_ == "a@b.com"

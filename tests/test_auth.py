@@ -17,7 +17,10 @@ class TestAuthService:
             patch("os.path.exists", return_value=True),
             patch("builtins.open", mock_open(read_data='{"token": "abc"}')),
             patch("json.load", return_value={"token": "abc"}),
-            patch("google.oauth2.credentials.Credentials.from_authorized_user_info", return_value=mock_creds),
+            patch(
+                "google.oauth2.credentials.Credentials.from_authorized_user_info",
+                return_value=mock_creds,
+            ),
         ):
             service = AuthService()
             result = service._load_credentials()
@@ -69,7 +72,9 @@ class TestAuthService:
 
         with (
             patch("os.path.exists", return_value=True),
-            patch("gmail_cli.auth.InstalledAppFlow.from_client_secrets_file", return_value=mock_flow),
+            patch(
+                "gmail_cli.auth.InstalledAppFlow.from_client_secrets_file", return_value=mock_flow
+            ),
         ):
             service = AuthService()
             result = service._create_from_oauth_flow()
@@ -99,7 +104,9 @@ class TestAuthService:
 
         with (
             patch.object(AuthService, "_load_credentials", return_value=invalid_creds),
-            patch.object(AuthService, "_refresh_credentials", return_value=valid_creds) as mock_refresh,
+            patch.object(
+                AuthService, "_refresh_credentials", return_value=valid_creds
+            ) as mock_refresh,
             patch.object(AuthService, "_save_credentials"),
             patch("gmail_cli.auth.build") as mock_build,
         ):
@@ -114,7 +121,9 @@ class TestAuthService:
 
         with (
             patch.object(AuthService, "_load_credentials", return_value=None),
-            patch.object(AuthService, "_create_from_oauth_flow", return_value=mock_creds) as mock_create,
+            patch.object(
+                AuthService, "_create_from_oauth_flow", return_value=mock_creds
+            ) as mock_create,
             patch.object(AuthService, "_save_credentials"),
             patch("gmail_cli.auth.build") as mock_build,
         ):

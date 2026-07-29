@@ -2,7 +2,7 @@
 name = "gmail-cli"
 version = "1.0.0-alpha"
 description = "CLI para gerenciar funções do Gmail"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 dependencies = [
     "google-api-python-client>=2.0.0",
     "google-auth-httplib2>=0.1.0",

@@ -127,12 +127,9 @@ class TestGmailClient:
             patch("os.path.exists", return_value=True),
             patch("builtins.open", mock_open(read_data=b"data")),
         ):
-            gmail_client._service.users().messages().send().execute.return_value = {
-                "id": "sent2"
-            }
+            gmail_client._service.users().messages().send().execute.return_value = {"id": "sent2"}
             result = gmail_client.send_message(
-                to="b@b.com", subject="Com anexo", body_text="Vai",
-                attachments=["/tmp/file.pdf"]
+                to="b@b.com", subject="Com anexo", body_text="Vai", attachments=["/tmp/file.pdf"]
             )
             assert result["id"] == "sent2"
 
@@ -142,8 +139,7 @@ class TestGmailClient:
             pytest.raises(FileNotFoundError, match="Anexo não encontrado"),
         ):
             gmail_client.send_message(
-                to="b@b.com", subject="X", body_text="X",
-                attachments=["/fake/file.pdf"]
+                to="b@b.com", subject="X", body_text="X", attachments=["/fake/file.pdf"]
             )
 
     def test_send_message_http_error(self, gmail_client):
@@ -151,11 +147,14 @@ class TestGmailClient:
         with pytest.raises(GmailError, match="Erro ao enviar e-mail"):
             gmail_client.send_message(to="x@x.com", subject="X", body_text="X")
 
-    @pytest.mark.parametrize(("labels_response", "expected_len"), [
-        ({"labels": [{"id": "L1", "name": "Label1"}, {"id": "L2", "name": "Label2"}]}, 2),
-        ({"labels": []}, 0),
-        ({}, 0),
-    ])
+    @pytest.mark.parametrize(
+        ("labels_response", "expected_len"),
+        [
+            ({"labels": [{"id": "L1", "name": "Label1"}, {"id": "L2", "name": "Label2"}]}, 2),
+            ({"labels": []}, 0),
+            ({}, 0),
+        ],
+    )
     def test_list_labels(self, gmail_client, labels_response, expected_len):
         gmail_client._service.users().labels().list().execute.return_value = labels_response
         result = gmail_client.list_labels()
@@ -170,7 +169,8 @@ class TestGmailClient:
 
     def test_create_label(self, gmail_client):
         gmail_client._service.users().labels().create().execute.return_value = {
-            "id": "L1", "name": "Nova"
+            "id": "L1",
+            "name": "Nova",
         }
         result = gmail_client.create_label("Nova")
         assert result["id"] == "L1"
@@ -182,9 +182,7 @@ class TestGmailClient:
 
     def test_delete_label(self, gmail_client):
         gmail_client.delete_label("L1")
-        gmail_client._service.users().labels().delete.assert_called_once_with(
-            userId="me", id="L1"
-        )
+        gmail_client._service.users().labels().delete.assert_called_once_with(userId="me", id="L1")
 
     def test_delete_label_http_error(self, gmail_client):
         gmail_client._service.users().labels().delete().execute.side_effect = _make_http_error()
@@ -269,9 +267,7 @@ class TestGmailClient:
 
     def test_delete_draft(self, gmail_client):
         gmail_client.delete_draft("d1")
-        gmail_client._service.users().drafts().delete.assert_called_once_with(
-            userId="me", id="d1"
-        )
+        gmail_client._service.users().drafts().delete.assert_called_once_with(userId="me", id="d1")
 
     def test_delete_draft_http_error(self, gmail_client):
         gmail_client._service.users().drafts().delete().execute.side_effect = _make_http_error()
@@ -400,7 +396,9 @@ class TestGmailClient:
             },
         }
         gmail_client._service.users().messages().get().execute.return_value = api_response
-        gmail_client._service.users().messages().attachments().get().execute.side_effect = _make_http_error(500)
+        gmail_client._service.users().messages().attachments().get().execute.side_effect = (
+            _make_http_error(500)
+        )
 
         with patch("os.makedirs"):
             files = gmail_client.download_attachments("m1", output_dir="/tmp/fail")

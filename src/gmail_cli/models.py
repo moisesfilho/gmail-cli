@@ -28,8 +28,7 @@ class Message:
     def custom_labels(self) -> list[str]:
         skip = {"INBOX", "TRASH", "SPAM", "SENT", "DRAFT", "STARRED", "UNREAD"}
         return [
-            lab for lab in self.label_ids
-            if not lab.startswith("CATEGORY_") and lab not in skip
+            lab for lab in self.label_ids if not lab.startswith("CATEGORY_") and lab not in skip
         ]
 
 
