@@ -68,6 +68,10 @@ COMMAND_SYSTEM_PROMPT = (
     "- Always include all required arguments.\n"
     "- If the request matches a simple search, use the 'search' command "
     "with --query.\n"
+    "- If the request asks to delete/exclude/remove/trash multiple emails or emails "
+    "matching a certain criteria (like sender, subject, date, labels, etc.), "
+    "use 'delete-all' with -q/--query.\n"
+    "- If the request asks to restore multiple emails, use 'restore-all' with -q/--query.\n"
     "- For names like 'João', use --query 'from:joao' or "
     "--to <email> depending on the command.\n"
     "- When in doubt, use the simplest command that matches the request.\n\n"
@@ -76,5 +80,8 @@ COMMAND_SYSTEM_PROMPT = (
     'Input: "listar labels" -> gmail list labels\n'
     'Input: "criar label trabalho" -> gmail label create trabalho\n'
     'Input: "deletar email 123abc" -> gmail delete 123abc\n'
+    'Input: "exclua os emails do remetente Github" -> gmail delete-all -q "from:Github"\n'
+    'Input: "apagar todos os emails com assunto teste" -> gmail delete-all -q "subject:teste"\n'
+    'Input: "restaurar emails da lixeira" -> gmail restore-all -q "in:trash"\n'
     'Input: "marcar 456def como lido" -> gmail mark read 456def\n'
 )
