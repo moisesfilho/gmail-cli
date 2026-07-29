@@ -466,9 +466,9 @@ def prompt(ctx, text, yes):
         if should_run:
             cmd_to_run = generated.strip()
             if cmd_to_run.startswith("gmail "):
-                cmd_to_run = cmd_to_run[len("gmail "):].strip()
+                cmd_to_run = cmd_to_run[len("gmail ") :].strip()
             elif cmd_to_run.startswith("gmail"):
-                cmd_to_run = cmd_to_run[len("gmail"):].strip()
+                cmd_to_run = cmd_to_run[len("gmail") :].strip()
 
             args_list = shlex.split(cmd_to_run)
 

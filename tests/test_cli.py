@@ -663,8 +663,6 @@ class TestPrompt:
             assert "Erro: No such command 'invalid-command-name'" in result.output
 
 
-
-
 class TestConfig:
     def test_show_defaults(self, runner):
         with patch("gmail_cli.cli.load_config") as mock_load:
