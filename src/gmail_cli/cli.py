@@ -414,13 +414,10 @@ def _build_commands_help(ctx: click.Context) -> str:
         if name == "prompt":
             return ""
 
-        current_path = path + [name]
+        current_path = [*path, name]
         full_name = " ".join(current_path)
 
-        if not path:
-            sub_ctx = ctx
-        else:
-            sub_ctx = click.Context(cmd, info_name=name, parent=ctx)
+        sub_ctx = ctx if not path else click.Context(cmd, info_name=name, parent=ctx)
 
         lines = []
         lines.append(f"Command: {full_name}")
@@ -484,8 +481,8 @@ def prompt(ctx, text, yes):
             except SystemExit as e:
                 if e.code != 0:
                     fmt.error(f"O comando saiu com código {e.code}")
-            except Exception as e:
-                fmt.error(f"Erro inesperado: {str(e)}")
+            except Exception as e:  # noqa: BLE001
+                fmt.error(f"Erro inesperado: {e}")
     except (AuthError, GmailError, ValueError, ConnectionError, TimeoutError) as e:
         fmt.error(str(e))
 

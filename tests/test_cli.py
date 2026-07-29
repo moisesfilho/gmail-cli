@@ -584,7 +584,7 @@ class TestPrompt:
                 assert "gmail search --query 'from:john'" in result.output
                 assert "Deseja executar o comando sugerido?" in result.output
                 mock_provider.generate_command.assert_called_once()
-                args, kwargs = mock_provider.generate_command.call_args
+                args, _ = mock_provider.generate_command.call_args
                 assert args[0] == "emails from john"
                 assert "Command: gmail search" in args[1]
                 assert "Command: gmail prompt" not in args[1]
