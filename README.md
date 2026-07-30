@@ -4,7 +4,7 @@
   <img src="https://img.shields.io/badge/version-v1.2.0--alpha-blue" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python">
-  <img src="https://img.shields.io/badge/tests-189%20passing-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-198%20passing-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/coverage-100%25-brightgreen" alt="Coverage">
 </p>
 
@@ -20,9 +20,11 @@ CLI to manage Gmail emails, labels, drafts, and attachments from the terminal.
 - **Manage labels** — create and delete
 - **Mark** as read / unread
 - **Trash**, **permanently delete**, and **restore**
-- **Batch operations** — delete/restore multiple emails by query
+- **Batch operations** — delete/restore multiple emails by query (with pagination — handles all results)
 - **Drafts** — create, send, and delete
 - **Download attachments** from a message
+- **AI Classification** — classify emails by category via LLM
+- **Natural Language Prompt** — describe what you want in plain text
 
 ## Installation
 
@@ -41,8 +43,15 @@ pip install -e ".[test,dev]"
 1. Go to [console.cloud.google.com](https://console.cloud.google.com/)
 2. Create a project and enable the **Gmail API**
 3. Under **Credentials**, create an OAuth 2.0 credential of type "Desktop application"
-4. Download the JSON and save it as `~/.gmail_cli_credentials.json`
+4. Download the JSON and save it as `~/.gmail-cli/credentials.json`
 5. Run any command to authenticate on first use
+
+> All configuration files are stored in `~/.gmail-cli/`:
+> - `config.json` — provider settings
+> - `credentials.json` — OAuth client secrets
+> - `token.json` — OAuth access/refresh token (auto-generated, auto-refreshed)
+>
+> The token is refreshed automatically when expired. Old tokens from `~/.gmail_cli_token.*` are migrated on first run.
 
 ## Usage
 
@@ -108,6 +117,26 @@ gmail draft send <draft_id>
 gmail draft delete <draft_id>
 ```
 
+### AI Classification
+
+Classify emails by category using your configured LLM provider:
+
+```bash
+# Classify last 20 emails
+gmail list messages --classify
+
+# Classify search results
+gmail search -q "from:linkedin" --classify
+
+# Classify with custom limit
+gmail search -q "is:unread" --max 50 --classify
+
+# Natural language (automatically picks the right command)
+gmail prompt "classifique os emails do linkedin"
+```
+
+The classification report includes total count, date range, senders, and category breakdown with percentages.
+
 ### Exporting Emails for AI/RAG
 
 Export email details and bodies to formats optimized for LLM processing/RAG (JSON, JSONL, Markdown) using the `--export` / `-e` option with `show`, `search`, and `list messages` commands:
@@ -152,15 +181,28 @@ gmail config set --provider openai --api-key sk-xxxxx
 # Use Google Gemini
 gmail config set --provider gemini --api-key g-xxxxx
 
+# Use OpenCode Go (low-cost subscription)
+gmail config set --provider opencode_go --api-key sk-xxxxx
+
 # Use local Ollama (default)
 gmail config set --provider ollama --ollama-url http://localhost:11434
 
 # Customize model per provider
-gmail config set --openai-model gpt-4 --ollama-model llama3.1
+gmail config set --openai-model gpt-4 --ollama-model llama3.1 --opencode-go-model deepseek-v4-flash
 ```
 
-Configuration is saved in `~/.gmail_cli_config.json`.
-Environment variables override file config: `GMAIL_CLI_PROVIDER`, `GMAIL_CLI_API_KEY`, `GMAIL_CLI_OLLAMA_URL`, `GMAIL_CLI_OLLAMA_MODEL`, `GMAIL_CLI_OPENAI_MODEL`, `GMAIL_CLI_GEMINI_MODEL`.
+Configuration is saved in `~/.gmail-cli/config.json`.
+Environment variables override file config:
+
+| Variable | Description |
+|---|---|
+| `GMAIL_CLI_PROVIDER` | Provider name (`openai`, `gemini`, `ollama`, `opencode_go`) |
+| `GMAIL_CLI_API_KEY` | API key for OpenAI, Gemini, or OpenCode Go |
+| `GMAIL_CLI_OLLAMA_URL` | Ollama server URL |
+| `GMAIL_CLI_OLLAMA_MODEL` | Ollama model name |
+| `GMAIL_CLI_OPENAI_MODEL` | OpenAI model name |
+| `GMAIL_CLI_GEMINI_MODEL` | Gemini model name |
+| `OPENCODE_GO_MODEL` | OpenCode Go model name |
 
 ## Project Structure
 
@@ -175,7 +217,14 @@ gmail-cli/
 │       ├── formatter.py   # Output formatting (CliFormatter)
 │       ├── gmail_client.py# Gmail API wrapper (GmailClient)
 │       ├── models.py      # Dataclasses: Message, Label, Draft
-│       └── providers/     # LLM providers (OpenAI, Gemini, Ollama)
+│       └── providers/     # LLM providers (OpenAI, Gemini, Ollama, OpenCodeGo)
+│           ├── __init__.py
+│           ├── base.py
+│           ├── config.py
+│           ├── gemini_provider.py
+│           ├── ollama_provider.py
+│           ├── openai_provider.py
+│           └── opencode_go_provider.py
 ├── tests/
 │   ├── conftest.py        # Shared fixtures
 │   ├── test_auth.py
@@ -192,7 +241,7 @@ gmail-cli/
 ## Tests
 
 ```bash
-pytest                    # 189 tests
+pytest                    # 198 tests
 pytest --cov=             # Coverage (100%)
 ```
 

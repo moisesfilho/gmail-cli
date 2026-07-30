@@ -3,7 +3,9 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-CONFIG_FILE = Path.home() / ".gmail_cli_config.json"
+DATA_DIR = Path.home() / ".gmail-cli"
+DATA_DIR.mkdir(exist_ok=True)
+CONFIG_FILE = DATA_DIR / "config.json"
 
 
 @dataclass
@@ -15,6 +17,7 @@ class ProviderConfig:
     ollama_model: str = "llama3.2"
     openai_model: str = "gpt-4o-mini"
     gemini_model: str = "gemini-2.0-flash"
+    opencode_go_model: str = "deepseek-v4-flash"
 
 
 def _load_config_file() -> dict:
@@ -48,6 +51,9 @@ def load_config() -> ProviderConfig:
         gemini_model=os.environ.get("GMAIL_CLI_GEMINI_MODEL")
         or file_cfg.get("gemini_model")
         or "gemini-2.0-flash",
+        opencode_go_model=os.environ.get("OPENCODE_GO_MODEL")
+        or file_cfg.get("opencode_go_model")
+        or "deepseek-v4-flash",
     )
 
 
@@ -59,5 +65,6 @@ def save_config(cfg: ProviderConfig) -> None:
         "ollama_model": cfg.ollama_model,
         "openai_model": cfg.openai_model,
         "gemini_model": cfg.gemini_model,
+        "opencode_go_model": cfg.opencode_go_model,
     }
     _save_config_file({k: v for k, v in data.items() if v})

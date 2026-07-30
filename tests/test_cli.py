@@ -995,3 +995,92 @@ class TestExport:
             assert "# Email: Subject msg1" in content
             assert "\n\n---\n\n" in content
             assert "# Email: Subject msg2" in content
+
+    def test_list_messages_classify(self, runner, mock_client):
+        # Arrange
+        mock_msgs = [
+            Message(
+                id="msg1",
+                thread_id="t1",
+                from_="a@b.com",
+                subject="S1",
+                date="D1",
+                label_ids=["L1"],
+            ),
+        ]
+        mock_client.list_messages.return_value = mock_msgs
+        mock_client.get_message.return_value = Message(
+            id="msg1",
+            thread_id="t1",
+            from_="a@b.com",
+            subject="S1",
+            date="D1",
+            label_ids=["L1"],
+            to="recip",
+            body="Body1",
+        )
+        mock_provider = MagicMock()
+        mock_provider.generate_classification_report.return_value = "Ollama Classification Report"
+
+        with (
+            patch.object(_cli_mod, "_create_client", return_value=mock_client),
+            patch.object(_cli_mod, "load_config") as mock_load,
+            patch.object(_cli_mod, "create_provider", return_value=mock_provider),
+            runner.isolated_filesystem(),
+        ):
+            mock_load.return_value = ProviderConfig(provider="ollama")
+
+            # Act
+            result = runner.invoke(cli, ["list", "messages", "--classify"])
+
+            # Assert
+            assert "Ollama Classification Report" in result.output
+            mock_provider.generate_classification_report.assert_called_once()
+            args, _ = mock_provider.generate_classification_report.call_args
+            assert "msg1" in args[0]
+            assert "Body1" in args[0]
+
+    def test_search_classify(self, runner, mock_client):
+        # Arrange
+        mock_msgs = [
+            Message(
+                id="msg1",
+                thread_id="t1",
+                from_="a@b.com",
+                subject="S1",
+                date="D1",
+                label_ids=["L1"],
+            ),
+        ]
+        mock_client.list_messages.return_value = mock_msgs
+        mock_client.get_message.return_value = Message(
+            id="msg1",
+            thread_id="t1",
+            from_="a@b.com",
+            subject="S1",
+            date="D1",
+            label_ids=["L1"],
+            to="recip",
+            body="Body1",
+        )
+        mock_provider = MagicMock()
+        mock_provider.generate_classification_report.return_value = "Gemini Classification Report"
+
+        with (
+            patch.object(_cli_mod, "_create_client", return_value=mock_client),
+            patch.object(_cli_mod, "load_config") as mock_load,
+            patch.object(_cli_mod, "create_provider", return_value=mock_provider),
+            runner.isolated_filesystem(),
+        ):
+            mock_load.return_value = ProviderConfig(provider="gemini")
+
+            # Act
+            result = runner.invoke(cli, ["search", "-q", "test query", "--classify"])
+
+            # Assert
+            assert "Gemini Classification Report" in result.output
+            mock_provider.generate_classification_report.assert_called_once()
+            args, _ = mock_provider.generate_classification_report.call_args
+            assert "msg1" in args[0]
+            assert "Body1" in args[0]
+

@@ -1,6 +1,6 @@
 import requests
 
-from .base import COMMAND_SYSTEM_PROMPT, SYSTEM_PROMPT, ModelProvider
+from .base import CLASSIFY_SYSTEM_PROMPT, COMMAND_SYSTEM_PROMPT, SYSTEM_PROMPT, ModelProvider
 
 
 class OllamaProvider(ModelProvider):
@@ -42,3 +42,28 @@ class OllamaProvider(ModelProvider):
         )
         resp.raise_for_status()
         return resp.json()["message"]["content"].strip()
+
+    def generate_classification_report(self, emails_json: str) -> str:
+        resp = requests.post(
+            f"{self.base_url}/api/chat",
+            json={
+                "model": self.model,
+                "messages": [
+                    {"role": "system", "content": CLASSIFY_SYSTEM_PROMPT},
+                    {
+                        "role": "user",
+                        "content": (
+                            emails_json
+                            + "\n\nGere APENAS o relatório de classificação "
+                            "conforme o formato especificado. Nada mais."
+                        ),
+                    },
+                ],
+                "options": {"temperature": 0},
+                "stream": False,
+            },
+            timeout=60,
+        )
+        resp.raise_for_status()
+        return resp.json()["message"]["content"].strip()
+

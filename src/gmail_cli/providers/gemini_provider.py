@@ -1,6 +1,6 @@
 import requests
 
-from .base import COMMAND_SYSTEM_PROMPT, SYSTEM_PROMPT, ModelProvider
+from .base import CLASSIFY_SYSTEM_PROMPT, COMMAND_SYSTEM_PROMPT, SYSTEM_PROMPT, ModelProvider
 
 
 class GeminiProvider(ModelProvider):
@@ -36,3 +36,32 @@ class GeminiProvider(ModelProvider):
         resp.raise_for_status()
         data = resp.json()
         return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+
+    def generate_classification_report(self, emails_json: str) -> str:
+        resp = requests.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent",
+            params={"key": self.api_key},
+            json={
+                "contents": [
+                    {
+                        "parts": [
+                            {
+                                "text": (
+                                    CLASSIFY_SYSTEM_PROMPT
+                                    + "\n\n"
+                                    + emails_json
+                                    + "\n\nGere APENAS o relatório de classificação "
+                                    "conforme o formato especificado. Nada mais."
+                                )
+                            }
+                        ]
+                    }
+                ],
+                "generationConfig": {"temperature": 0},
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+

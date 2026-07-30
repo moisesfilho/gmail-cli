@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
 
-from gmail_cli import AuthService, CredentialsNotFoundError
+from gmail_cli import AuthError, AuthService, CredentialsNotFoundError
 from gmail_cli.auth import _open_guide_and_wait, wait_for_file
 
 
@@ -56,9 +56,11 @@ class TestAuthService:
         mock_creds = MagicMock()
         mock_creds.valid = True
         mock_creds.expired = False
+        mock_creds.refresh_token = "token"
         service = AuthService()
         result = service._refresh_credentials(mock_creds)
-        assert result is None
+        assert result is mock_creds
+        mock_creds.refresh.assert_called_once()
 
     def test_create_from_oauth_flow_raises_without_file(self):
         with (
@@ -121,21 +123,22 @@ class TestAuthService:
             mock_refresh.assert_called_once_with(invalid_creds)
 
     def test_get_service_creates_new_creds(self):
-        mock_creds = MagicMock()
-        mock_creds.valid = True
-
         with (
             patch.object(AuthService, "_load_credentials", return_value=None),
-            patch.object(
-                AuthService, "_create_from_oauth_flow", return_value=mock_creds
-            ) as mock_create,
-            patch.object(AuthService, "_save_credentials"),
-            patch("gmail_cli.auth.build") as mock_build,
+            pytest.raises(AuthError, match="Token de autenticação não encontrado"),
         ):
-            service = AuthService()
-            result = service.get_service()
-            assert result == mock_build.return_value
-            mock_create.assert_called_once()
+            AuthService().get_service()
+
+    def test_get_service_refresh_fails(self):
+        invalid_creds = MagicMock()
+        invalid_creds.valid = False
+
+        with (
+            patch.object(AuthService, "_load_credentials", return_value=invalid_creds),
+            patch.object(AuthService, "_refresh_credentials", return_value=None),
+            pytest.raises(AuthError, match="não foi possível renovar"),
+        ):
+            AuthService().get_service()
 
     def test_login(self):
         mock_creds = MagicMock()

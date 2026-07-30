@@ -19,15 +19,32 @@ class GmailClient:
         self._service = service
 
     def list_messages(self, query="", max_results=20, label_ids=None):
-        params = {"userId": "me", "maxResults": max_results}
+        params = {"userId": "me"}
         if query:
             params["q"] = query
         if label_ids:
             params["labelIds"] = label_ids if isinstance(label_ids, list) else [label_ids]
         try:
-            result = self._service.users().messages().list(**params).execute()
-            messages = result.get("messages", [])
-            return [self._build_message_meta(m) for m in messages]
+            remaining = None if max_results is None else max_results
+            page_token = None
+            all_messages = []
+            while True:
+                if remaining is not None:
+                    params["maxResults"] = min(500, remaining)
+                else:
+                    params["maxResults"] = 500
+                if page_token:
+                    params["pageToken"] = page_token
+                result = self._service.users().messages().list(**params).execute()
+                all_messages.extend(result.get("messages", []))
+                page_token = result.get("nextPageToken")
+                if not page_token:
+                    break
+                if remaining is not None:
+                    remaining = max_results - len(all_messages)
+                    if remaining <= 0:
+                        break
+            return [self._build_message_meta(m) for m in all_messages]
         except HttpError as e:
             raise GmailError(f"Erro ao listar mensagens: {e}")
 

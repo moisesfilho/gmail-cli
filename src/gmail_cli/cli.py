@@ -81,6 +81,32 @@ def _export_messages(messages, export_path: str):
         _export_messages(messages, export_path + ".json")
 
 
+def _classify_messages(client, msgs):
+    full_msgs = []
+    with click.progressbar(msgs, label="Carregando dados dos e-mails") as bar:
+        for m in bar:
+            full_msgs.append(client.get_message(m.id))
+    data = []
+    for m in full_msgs:
+        data.append(
+            {
+                "id": m.id,
+                "thread_id": m.thread_id,
+                "from": m.from_,
+                "to": m.to,
+                "subject": m.subject,
+                "date": m.date,
+                "label_ids": m.label_ids,
+                "body": m.body,
+            }
+        )
+    emails_json = json.dumps(data, ensure_ascii=False)
+    config = load_config()
+    provider = create_provider(config)
+    report = provider.generate_classification_report(emails_json)
+    click.echo(report)
+
+
 fmt = CliFormatter()
 
 
@@ -99,7 +125,7 @@ def auth():
 def auth_login():
     """Autenticar no Gmail (abre o navegador)."""
     AuthService().login()
-    fmt.info("Autenticação concluída! Token salvo em ~/.gmail_cli_token.json")
+    fmt.info("Autenticação concluída! Token salvo em ~/.gmail-cli/token.json")
 
 
 @auth.command("logout")
@@ -115,7 +141,7 @@ def auth_status():
     """Verificar status da autenticação."""
     svc = AuthService()
     if svc._load_credentials():
-        fmt.info("Autenticado — token encontrado em ~/.gmail_cli_token.json")
+        fmt.info("Autenticado — token encontrado em ~/.gmail-cli/token.json")
     elif os.path.exists(svc.CREDENTIALS_FILE):
         fmt.info("Credenciais encontradas, mas token ainda não gerado.")
         fmt.info("Execute 'gmail auth login' para autenticar.")
@@ -135,7 +161,8 @@ def list_cmd():
 @click.option("--max", "max_results", default=20, help="Número máximo")
 @click.option("--label", "-l", multiple=True, help="Filtrar por label")
 @click.option("--export", "-e", help="Caminho do arquivo para exportação (.json, .jsonl, .md)")
-def list_messages(query, max_results, label, export):
+@click.option("--classify", "-c", is_flag=True, help="Gerar relatório de classificação via IA")
+def list_messages(query, max_results, label, export, classify):
     """Listar e-mails."""
     try:
         client = _create_client()
@@ -145,7 +172,9 @@ def list_messages(query, max_results, label, export):
         if not msgs:
             fmt.info("Nenhuma mensagem encontrada.")
             return
-        if export:
+        if classify:
+            _classify_messages(client, msgs)
+        elif export:
             full_msgs = []
             with click.progressbar(msgs, label="Carregando dados dos e-mails") as bar:
                 for m in bar:
@@ -316,7 +345,7 @@ def delete_all(query, permanent):
     """Deletar e-mails em lote."""
     try:
         client = _create_client()
-        msgs = client.list_messages(query=query, max_results=500)
+        msgs = client.list_messages(query=query, max_results=None)
         if not msgs:
             fmt.info("Nenhum e-mail encontrado.")
             return
@@ -351,7 +380,7 @@ def restore_all(query):
     """Restaurar e-mails da lixeira em lote."""
     try:
         client = _create_client()
-        msgs = client.list_messages(query=query, label_ids=["TRASH"], max_results=500)
+        msgs = client.list_messages(query=query, label_ids=["TRASH"], max_results=None)
         if not msgs:
             fmt.info("Nenhum e-mail encontrado na lixeira.")
             return
@@ -431,7 +460,8 @@ def attachments(message_id, output):
 @click.option("--query", "-q", default="", help="Termo de busca")
 @click.option("--max", "max_results", default=20, help="Número máximo")
 @click.option("--export", "-e", help="Caminho do arquivo para exportação (.json, .jsonl, .md)")
-def search(query, max_results, export):
+@click.option("--classify", "-c", is_flag=True, help="Gerar relatório de classificação via IA")
+def search(query, max_results, export, classify):
     """Buscar e-mails."""
     try:
         client = _create_client()
@@ -439,7 +469,9 @@ def search(query, max_results, export):
         if not msgs:
             fmt.info("Nenhum e-mail encontrado.")
             return
-        if export:
+        if classify:
+            _classify_messages(client, msgs)
+        elif export:
             full_msgs = []
             with click.progressbar(msgs, label="Carregando dados dos e-mails") as bar:
                 for m in bar:
@@ -472,15 +504,18 @@ def config_show():
         fmt.info(f"Modelo: {cfg.openai_model}")
     elif cfg.provider == "gemini":
         fmt.info(f"Modelo: {cfg.gemini_model}")
+    elif cfg.provider == "opencode_go":
+        fmt.info(f"Modelo: {cfg.opencode_go_model}")
 
 
 @config.command("set")
-@click.option("--provider", type=click.Choice(["openai", "gemini", "ollama"]))
+@click.option("--provider", type=click.Choice(["openai", "gemini", "ollama", "opencode_go"]))
 @click.option("--api-key")
 @click.option("--ollama-url", default="http://localhost:11434")
 @click.option("--ollama-model", default="llama3.2")
 @click.option("--openai-model", default="gpt-4o-mini")
 @click.option("--gemini-model", default="gemini-2.0-flash")
+@click.option("--opencode-go-model", default="deepseek-v4-flash")
 def config_set(**kwargs):
     """Definir configuração."""
     cfg = load_config()
@@ -492,8 +527,9 @@ def config_set(**kwargs):
     cfg.ollama_model = kwargs.get("ollama_model", cfg.ollama_model)
     cfg.openai_model = kwargs.get("openai_model", cfg.openai_model)
     cfg.gemini_model = kwargs.get("gemini_model", cfg.gemini_model)
+    cfg.opencode_go_model = kwargs.get("opencode_go_model", cfg.opencode_go_model)
     save_config(cfg)
-    fmt.info("Configuração salva em ~/.gmail_cli_config.json")
+    fmt.info("Configuração salva em ~/.gmail-cli/config.json")
 
 
 def _build_commands_help(ctx: click.Context) -> str:

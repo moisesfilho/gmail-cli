@@ -8,6 +8,9 @@ class ModelProvider(ABC):
     @abstractmethod
     def generate_command(self, natural_language: str, commands_help: str) -> str: ...
 
+    @abstractmethod
+    def generate_classification_report(self, emails_json: str) -> str: ...
+
 
 SYSTEM_PROMPT = (
     "You are a Gmail search query generator. "
@@ -21,13 +24,15 @@ SYSTEM_PROMPT = (
     '- Use quotes for exact phrases: subject:"meeting notes"\n'
     "- Negative operators: -from:spam, -is:inbox\n"
     "- Date format: YYYY/MM/DD or relative:\n"
-    "  today, yesterday, last_week, last_month, older_than:Nd, newer_than:Nw\n"
+    "  newer_than:Nd, newer_than:Nw, newer_than:Nm,\n"
+    "  older_than:Nd, older_than:Nw, older_than:Nm,\n"
+    "  after:YYYY/MM/DD, before:YYYY/MM/DD\n"
     "- NEVER add from: unless the user explicitly mentions a sender.\n"
     "- NEVER add literal filler words like 'email', 'emails', 'messages',\n"
     "  'meus', 'todos', 'que', 'de', 'do', 'da', 'dos', 'das'.\n"
     "- Translate date expressions:\n"
     "  'hoje'/'de hoje' -> newer_than:1d\n"
-    "  'ontem'/'de ontem' -> yesterday or after:YYYY/MM/DD\n"
+    "  'ontem'/'de ontem' -> newer_than:2d older_than:1d\n"
     "  'essa semana'/'dessa semana' -> newer_than:7d\n"
     "  'esse mês'/'desse mês' -> newer_than:30d\n"
     "  'semana passada' -> after:YYYY/MM/DD before:YYYY/MM/DD (last 7 days)\n"
@@ -85,3 +90,34 @@ COMMAND_SYSTEM_PROMPT = (
     'Input: "restaurar emails da lixeira" -> gmail restore-all -q "in:trash"\n'
     'Input: "marcar 456def como lido" -> gmail mark read 456def\n'
 )
+
+
+CLASSIFY_SYSTEM_PROMPT = (
+    "Você é um classificador de e-mails. "
+    "Gere APENAS um relatório de classificação com o formato abaixo. "
+    "NÃO analise, resuma ou descreva o conteúdo dos e-mails. "
+    "NÃO adicione saudações ou explicações.\n\n"
+    "FORMATO EXATO (substitua os valores entre colchetes):\n\n"
+    "Resumo Geral\n"
+    "Total de E-mails: [número total]\n"
+    "Período: [período das datas]\n"
+    "Remetentes: [nomes/emails dos remetentes]\n"
+    "Classificação por Categoria\n"
+    "[Nome da Categoria] ([Nome em Inglês]) [[percentual%]]: "
+    "[quantidade] e-mail(s) [descrição curta]\n\n"
+    "EXEMPLO:\n"
+    "Resumo Geral\n"
+    "Total de E-mails: 3\n"
+    "Período: De 25 a 29 de Julho de 2026\n"
+    "Remetentes: LinkedIn (notifications-noreply@linkedin.com), GitHub (noreply@github.com)\n"
+    "Classificação por Categoria\n"
+    "Alertas de Vaga (Job Alerts) [66%]: 2 e-mail(s) vagas de emprego\n"
+    "Notificações Gerais (General Notifications) [34%]: 1 e-mail(s) notificações do GitHub\n\n"
+    "REGRAS:\n"
+    "- Gere SOMENTE o relatório, nada mais\n"
+    "- Não use markdown, código ou formatação especial\n"
+    "- Atribua cada e-mail a uma única categoria\n"
+    "- Se houver 1 e-mail, use [100%] e 1 categoria"
+)
+
+
