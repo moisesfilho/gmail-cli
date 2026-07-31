@@ -4,7 +4,7 @@
   <img src="https://img.shields.io/badge/vers%C3%A3o-v1.2.0--alpha-blue" alt="Versão">
   <img src="https://img.shields.io/badge/licen%C3%A7a-MIT-green" alt="Licença">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python">
-  <img src="https://img.shields.io/badge/testes-198%20passando-brightgreen" alt="Testes">
+  <img src="https://img.shields.io/badge/testes-207%20passando-brightgreen" alt="Testes">
   <img src="https://img.shields.io/badge/cobertura-100%25-brightgreen" alt="Cobertura">
 </p>
 
@@ -25,6 +25,7 @@ CLI para gerenciar e-mail, labels, rascunhos e anexos do Gmail via terminal.
 - **Baixar anexos** de uma mensagem
 - **Classificação por IA** — classificar e-mails por categoria via LLM
 - **Comando em Linguagem Natural** — descreva o que quer em texto simples
+- **Logs cíclicos da aplicação** — registra todos os comandos, prompts e respostas sugeridas, mantendo apenas o número de dias configurado (padrão 120)
 
 ## Instalação
 
@@ -50,10 +51,19 @@ pip install -e ".[test,dev]"
 > - `config.json` — configurações do provedor
 > - `credentials.json` — credenciais OAuth do Google Cloud
 > - `token.json` — token de acesso/refresh OAuth (gerado automaticamente, com renovação automática)
+> - `logs/gmail-cli.log` — log cíclico da aplicação (rotação diária, mantém `log_days`)
 >
 > O token é renovado automaticamente quando expira. Tokens antigos de `~/.gmail_cli_token.*` são migrados na primeira execução.
 
 ## Uso
+
+### Autenticação
+
+```bash
+gmail auth login      # Abre o navegador e autentica
+gmail auth status     # Verifica o status da autenticação
+gmail auth logout     # Revoga o token e sai
+```
 
 ### Listar e-mails
 
@@ -73,6 +83,13 @@ gmail search -q "assunto:reunião"
 
 ```bash
 gmail show <message_id>
+```
+
+### Baixar anexos
+
+```bash
+gmail attachments <message_id>
+gmail attachments <message_id> -o ./downloads
 ```
 
 ### Enviar e-mail
@@ -189,6 +206,9 @@ gmail config set --provider ollama --ollama-url http://localhost:11434
 
 # Customizar modelo por provedor
 gmail config set --openai-model gpt-4 --ollama-model llama3.1 --opencode-go-model deepseek-v4-flash
+
+# Definir retenção de logs em dias (cíclico, apaga os mais antigos)
+gmail config set --log-days 120
 ```
 
 A configuração é salva em `~/.gmail-cli/config.json`.
@@ -203,6 +223,11 @@ Variáveis de ambiente sobrescrevem o arquivo:
 | `GMAIL_CLI_OPENAI_MODEL` | Nome do modelo OpenAI |
 | `GMAIL_CLI_GEMINI_MODEL` | Nome do modelo Gemini |
 | `OPENCODE_GO_MODEL` | Nome do modelo OpenCode Go |
+| `GMAIL_CLI_LOG_DAYS` | Retenção de logs em dias (padrão 120) |
+
+### Logs da Aplicação
+
+A CLI grava um log cíclico em `~/.gmail-cli/logs/gmail-cli.log`. Ele registra todos os comandos executados (`CMD:`), prompts em linguagem natural e comandos gerados (`PROMPT:` / `SUGGESTED:`), e diretórios de exportação (`Export gerado em:`). O log tem rotação diária e os arquivos antigos são apagados após `log_days` dias (padrão 120, configurável via `config set --log-days` ou `GMAIL_CLI_LOG_DAYS`).
 
 ## Estrutura do Projeto
 
@@ -216,6 +241,7 @@ gmail-cli/
 │       ├── cli.py         # Interface CLI (click)
 │       ├── formatter.py   # Formatação de saída (CliFormatter)
 │       ├── gmail_client.py# Wrapper da API Gmail (GmailClient)
+│       ├── logging_utils.py # Logger rotativo cíclico (TimedRotatingFileHandler)
 │       ├── models.py      # Dataclasses: Message, Label, Draft
 │       └── providers/     # Provedores LLM (OpenAI, Gemini, Ollama, OpenCodeGo)
 │           ├── __init__.py
@@ -231,6 +257,7 @@ gmail-cli/
 │   ├── test_cli.py        # Testes via Click CliRunner
 │   ├── test_formatter.py
 │   ├── test_gmail_client.py
+│   ├── test_logging_utils.py
 │   ├── test_models.py
 │   └── test_providers.py
 ├── pyproject.toml          # Config (ruff, pytest, packaging)
@@ -241,7 +268,7 @@ gmail-cli/
 ## Testes
 
 ```bash
-pytest                    # 198 testes
+pytest                    # 207 testes
 pytest --cov=             # Cobertura (100%)
 ```
 

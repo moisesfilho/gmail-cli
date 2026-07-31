@@ -1,9 +1,19 @@
+import logging
 from unittest.mock import MagicMock
 
 import pytest
 
-from gmail_cli import GmailClient
+from gmail_cli import GmailClient, logging_utils
 from gmail_cli.models import Draft, Label, Message
+
+
+@pytest.fixture(autouse=True)
+def _isolated_logger(tmp_path, monkeypatch):
+    monkeypatch.setattr(logging_utils, "LOG_FILE", tmp_path / "logs" / "gmail-cli.log")
+    logger = logging.getLogger(logging_utils._LOGGER_NAME)
+    for handler in list(logger.handlers):
+        logger.removeHandler(handler)
+        handler.close()
 
 
 @pytest.fixture

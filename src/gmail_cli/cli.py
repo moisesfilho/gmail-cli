@@ -8,6 +8,7 @@ import click
 from .auth import AuthError, AuthService
 from .formatter import CliFormatter
 from .gmail_client import GmailClient, GmailError
+from .logging_utils import get_logger
 from .models import Message
 from .providers import create_provider, load_config, save_config
 
@@ -44,6 +45,7 @@ def _export_messages(messages, export_path: str):
                 indent=2,
                 ensure_ascii=False,
             )
+        get_logger().info("Export gerado em: %s", os.path.dirname(os.path.abspath(export_path)))
 
     elif ext == ".jsonl":
         with open(export_path, "w", encoding="utf-8") as f:
@@ -59,6 +61,7 @@ def _export_messages(messages, export_path: str):
                     "body": m.body,
                 }
                 f.write(json.dumps(line_data, ensure_ascii=False) + "\n")
+        get_logger().info("Export gerado em: %s", os.path.dirname(os.path.abspath(export_path)))
 
     elif ext == ".md":
         with open(export_path, "w", encoding="utf-8") as f:
@@ -75,6 +78,7 @@ def _export_messages(messages, export_path: str):
                 f.write(f"- **Labels:** {labels_str}\n\n")
                 f.write("## Body\n\n")
                 f.write(m.body or "(No Body)")
+        get_logger().info("Export gerado em: %s", os.path.dirname(os.path.abspath(export_path)))
 
     else:
         # Default to JSON
@@ -110,7 +114,15 @@ def _classify_messages(client, msgs):
 fmt = CliFormatter()
 
 
-@click.group()
+class LoggingGroup(click.Group):
+    def invoke(self, ctx):
+        parts = list(getattr(ctx, "protected_args", ())) + list(ctx.args)
+        if parts:
+            get_logger().info("CMD: gmail %s", " ".join(parts))
+        return super().invoke(ctx)
+
+
+@click.group(cls=LoggingGroup)
 def cli():
     pass
 
@@ -506,6 +518,7 @@ def config_show():
         fmt.info(f"Modelo: {cfg.gemini_model}")
     elif cfg.provider == "opencode_go":
         fmt.info(f"Modelo: {cfg.opencode_go_model}")
+    fmt.info(f"Retenção de logs (dias): {cfg.log_days}")
 
 
 @config.command("set")
@@ -516,6 +529,7 @@ def config_show():
 @click.option("--openai-model", default="gpt-4o-mini")
 @click.option("--gemini-model", default="gemini-2.0-flash")
 @click.option("--opencode-go-model", default="deepseek-v4-flash")
+@click.option("--log-days", type=int)
 def config_set(**kwargs):
     """Definir configuração."""
     cfg = load_config()
@@ -528,6 +542,8 @@ def config_set(**kwargs):
     cfg.openai_model = kwargs.get("openai_model", cfg.openai_model)
     cfg.gemini_model = kwargs.get("gemini_model", cfg.gemini_model)
     cfg.opencode_go_model = kwargs.get("opencode_go_model", cfg.opencode_go_model)
+    if kwargs.get("log_days") is not None:
+        cfg.log_days = kwargs["log_days"]
     save_config(cfg)
     fmt.info("Configuração salva em ~/.gmail-cli/config.json")
 
@@ -573,6 +589,7 @@ def prompt(ctx, text, yes):
         provider = create_provider(cfg)
         natural = " ".join(text)
         fmt.info(f"Gerando comando para: {natural}")
+        get_logger().info("PROMPT: %s", natural)
 
         commands_help = _build_commands_help(ctx)
         generated = provider.generate_command(natural, commands_help)
@@ -580,6 +597,8 @@ def prompt(ctx, text, yes):
         if not generated:
             fmt.error("Não foi possível gerar um comando.")
             return
+
+        get_logger().info("SUGGESTED: %s", generated)
 
         highlighted = click.style(generated, fg="cyan", bold=True)
         fmt.info(f"\nComando sugerido: {highlighted}\n")

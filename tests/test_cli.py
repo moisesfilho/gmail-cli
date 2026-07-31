@@ -1084,3 +1084,51 @@ class TestExport:
             assert "msg1" in args[0]
             assert "Body1" in args[0]
 
+
+class TestLogging:
+    def _read_log(self, tmp_path):
+        log_file = tmp_path / "logs" / "gmail-cli.log"
+        return log_file.read_text(encoding="utf-8") if log_file.exists() else ""
+
+    def test_logs_command(self, runner, mock_client, tmp_path):
+        mock_client.list_messages.return_value = []
+        result = invoke(runner, ["list", "messages"], mock_client)
+        assert result.exit_code == 0
+        assert "CMD: gmail list messages" in self._read_log(tmp_path)
+
+    def test_logs_prompt_and_suggested(self, runner, mock_client, tmp_path):
+        mock_provider = MagicMock()
+        mock_provider.generate_command.return_value = "gmail search --query 'is:unread'"
+        with (
+            patch.object(_cli_mod, "load_config") as mock_load,
+            patch.object(_cli_mod, "create_provider", return_value=mock_provider),
+        ):
+            mock_load.return_value = ProviderConfig(provider="ollama")
+            result = runner.invoke(cli, ["prompt", "unread", "emails"], input="n\n")
+        assert result.exit_code == 0
+        log = self._read_log(tmp_path)
+        assert "PROMPT: unread emails" in log
+        assert "SUGGESTED: gmail search --query 'is:unread'" in log
+
+    def test_logs_export_directory(self, runner, mock_client, tmp_path):
+        mock_msg = Message(
+            id="msg123",
+            thread_id="thread456",
+            from_="sender@test.com",
+            subject="Test Subject",
+            date="Wed, 29 Jul 2026",
+            label_ids=["INBOX"],
+            to="recipient@test.com",
+            body="body",
+        )
+        mock_client.get_message.return_value = mock_msg
+        with (
+            patch.object(_cli_mod, "_create_client", return_value=mock_client),
+            runner.isolated_filesystem(),
+        ):
+            result = runner.invoke(cli, ["show", "msg123", "--export", "output.json"])
+        assert result.exit_code == 0
+        log = self._read_log(tmp_path)
+        assert "Export gerado em:" in log
+        assert "output.json" in log
+

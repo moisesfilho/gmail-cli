@@ -18,6 +18,7 @@ class ProviderConfig:
     openai_model: str = "gpt-4o-mini"
     gemini_model: str = "gemini-2.0-flash"
     opencode_go_model: str = "deepseek-v4-flash"
+    log_days: int = 120
 
 
 def _load_config_file() -> dict:
@@ -54,6 +55,7 @@ def load_config() -> ProviderConfig:
         opencode_go_model=os.environ.get("OPENCODE_GO_MODEL")
         or file_cfg.get("opencode_go_model")
         or "deepseek-v4-flash",
+        log_days=int(os.environ.get("GMAIL_CLI_LOG_DAYS") or file_cfg.get("log_days") or 120),
     )
 
 
@@ -66,5 +68,6 @@ def save_config(cfg: ProviderConfig) -> None:
         "openai_model": cfg.openai_model,
         "gemini_model": cfg.gemini_model,
         "opencode_go_model": cfg.opencode_go_model,
+        "log_days": cfg.log_days,
     }
     _save_config_file({k: v for k, v in data.items() if v})
