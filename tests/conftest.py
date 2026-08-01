@@ -5,15 +5,21 @@ from unittest.mock import MagicMock
 import pytest
 
 from gmail_cli import GmailClient, labels_cache, logging_utils
+from gmail_cli.auth import AuthService
 from gmail_cli.models import Draft, Label, Message
+from gmail_cli.providers import config as providers_config
 
 _cli_module = sys.modules["gmail_cli.cli"]
 
 
 @pytest.fixture(autouse=True)
-def _isolated_logger(tmp_path, monkeypatch):
+def _isolated_files(tmp_path, monkeypatch):
     monkeypatch.setattr(logging_utils, "LOG_FILE", tmp_path / "logs" / "gmail-cli.log")
     monkeypatch.setattr(labels_cache, "LABELS_FILE", tmp_path / "labels_cache.json")
+    monkeypatch.setattr(AuthService, "TOKEN_FILE", str(tmp_path / "token.json"))
+    monkeypatch.setattr(AuthService, "CREDENTIALS_FILE", str(tmp_path / "credentials.json"))
+    monkeypatch.setattr(providers_config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(providers_config, "CONFIG_FILE", tmp_path / "config.json")
     monkeypatch.setattr(_cli_module, "_refresh_labels_background", lambda: None)
     logger = logging.getLogger(logging_utils._LOGGER_NAME)
     for handler in list(logger.handlers):

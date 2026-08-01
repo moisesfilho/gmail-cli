@@ -15,13 +15,13 @@ from gmail_cli.providers import (
     load_config,
     save_config,
 )
+from gmail_cli.providers import config as providers_config
 from gmail_cli.providers.base import (
     COMMAND_SYSTEM_PROMPT,
     SYSTEM_PROMPT,
     build_classify_system_prompt,
     build_suggestion_system_prompt,
 )
-from gmail_cli.providers.config import DATA_DIR
 
 
 class TestSystemPrompt:
@@ -106,7 +106,7 @@ class TestProviderConfig:
 
     @patch.dict(os.environ, {}, clear=True)
     def test_corrupted_config_file_falls_back(self, tmp_path):
-        config_file = DATA_DIR / "config.json"
+        config_file = providers_config.CONFIG_FILE
         backup = None
         if config_file.exists():
             backup = config_file.read_text()
@@ -144,7 +144,7 @@ class TestProviderConfig:
 
     @patch.dict(os.environ, {}, clear=True)
     def test_load_from_file(self, tmp_path):
-        config_file = DATA_DIR / "config.json"
+        config_file = providers_config.CONFIG_FILE
         backup = None
         if config_file.exists():
             backup = config_file.read_text()
@@ -165,7 +165,7 @@ class TestProviderConfig:
 
 class TestSaveConfig:
     def test_saves_and_loads(self, tmp_path):
-        config_file = DATA_DIR / "config.json"
+        config_file = providers_config.CONFIG_FILE
         backup = None
         if config_file.exists():
             backup = config_file.read_text()
