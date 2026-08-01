@@ -13,11 +13,16 @@ BASE_URL = "https://opencode.ai/zen/go/v1"
 
 class OpenCodeGoProvider(ModelProvider):
     def __init__(
-        self, api_key: str, model: str = "deepseek-v4-flash", response_language: str = "pt"
+        self,
+        api_key: str,
+        model: str = "deepseek-v4-flash",
+        response_language: str = "pt",
+        timeout: int = 120,
     ):
         self.api_key = api_key
         self.model = model
         self.response_language = response_language
+        self.timeout = timeout
 
     def _post(self, system_prompt: str, user_content: str) -> str:
         resp = requests.post(
@@ -34,7 +39,7 @@ class OpenCodeGoProvider(ModelProvider):
                 ],
                 "temperature": 0,
             },
-            timeout=120,
+            timeout=self.timeout,
         )
         resp.raise_for_status()
         return resp.json()["choices"][0]["message"]["content"].strip()

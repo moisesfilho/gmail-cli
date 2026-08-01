@@ -10,10 +10,17 @@ from .base import (
 
 
 class OpenAIProvider(ModelProvider):
-    def __init__(self, api_key: str, model: str = "gpt-4o-mini", response_language: str = "pt"):
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "gpt-4o-mini",
+        response_language: str = "pt",
+        timeout: int = 30,
+    ):
         self.api_key = api_key
         self.model = model
         self.response_language = response_language
+        self.timeout = timeout
 
     def generate_query(self, natural_language: str) -> str:
         resp = requests.post(
@@ -30,7 +37,7 @@ class OpenAIProvider(ModelProvider):
                 ],
                 "temperature": 0,
             },
-            timeout=30,
+            timeout=self.timeout,
         )
         resp.raise_for_status()
         return resp.json()["choices"][0]["message"]["content"].strip()
@@ -51,7 +58,7 @@ class OpenAIProvider(ModelProvider):
                 ],
                 "temperature": 0,
             },
-            timeout=30,
+            timeout=self.timeout,
         )
         resp.raise_for_status()
         return resp.json()["choices"][0]["message"]["content"].strip()
@@ -82,7 +89,7 @@ class OpenAIProvider(ModelProvider):
                 ],
                 "temperature": 0,
             },
-            timeout=30,
+            timeout=self.timeout,
         )
         resp.raise_for_status()
         return resp.json()["choices"][0]["message"]["content"].strip()
@@ -113,7 +120,7 @@ class OpenAIProvider(ModelProvider):
                 ],
                 "temperature": 0,
             },
-            timeout=30,
+            timeout=self.timeout,
         )
         resp.raise_for_status()
         return resp.json()["choices"][0]["message"]["content"].strip()

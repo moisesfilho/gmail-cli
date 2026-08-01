@@ -20,6 +20,8 @@ class ProviderConfig:
     opencode_go_model: str = "deepseek-v4-flash"
     log_days: int = 120
     response_language: str = "pt"
+    request_timeout: int = 300
+    max_body_chars: int = 1000
 
 
 def _load_config_file() -> dict:
@@ -60,6 +62,12 @@ def load_config() -> ProviderConfig:
         response_language=os.environ.get("GMAIL_CLI_RESPONSE_LANGUAGE")
         or file_cfg.get("response_language")
         or "pt",
+        request_timeout=int(
+            os.environ.get("GMAIL_CLI_REQUEST_TIMEOUT") or file_cfg.get("request_timeout") or 300
+        ),
+        max_body_chars=int(
+            os.environ.get("GMAIL_CLI_MAX_BODY_CHARS") or file_cfg.get("max_body_chars") or 1000
+        ),
     )
 
 
@@ -74,5 +82,7 @@ def save_config(cfg: ProviderConfig) -> None:
         "opencode_go_model": cfg.opencode_go_model,
         "log_days": cfg.log_days,
         "response_language": cfg.response_language,
+        "request_timeout": cfg.request_timeout,
+        "max_body_chars": cfg.max_body_chars,
     }
     _save_config_file({k: v for k, v in data.items() if v})

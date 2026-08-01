@@ -11,11 +11,16 @@ from .base import (
 
 class GeminiProvider(ModelProvider):
     def __init__(
-        self, api_key: str, model: str = "gemini-2.0-flash", response_language: str = "pt"
+        self,
+        api_key: str,
+        model: str = "gemini-2.0-flash",
+        response_language: str = "pt",
+        timeout: int = 30,
     ):
         self.api_key = api_key
         self.model = model
         self.response_language = response_language
+        self.timeout = timeout
 
     def generate_query(self, natural_language: str) -> str:
         resp = requests.post(
@@ -25,7 +30,7 @@ class GeminiProvider(ModelProvider):
                 "contents": [{"parts": [{"text": SYSTEM_PROMPT + "\n\n" + natural_language}]}],
                 "generationConfig": {"temperature": 0},
             },
-            timeout=30,
+            timeout=self.timeout,
         )
         resp.raise_for_status()
         data = resp.json()
@@ -40,7 +45,7 @@ class GeminiProvider(ModelProvider):
                 "contents": [{"parts": [{"text": system_prompt + "\n\n" + natural_language}]}],
                 "generationConfig": {"temperature": 0},
             },
-            timeout=30,
+            timeout=self.timeout,
         )
         resp.raise_for_status()
         data = resp.json()
@@ -70,7 +75,7 @@ class GeminiProvider(ModelProvider):
                 ],
                 "generationConfig": {"temperature": 0},
             },
-            timeout=30,
+            timeout=self.timeout,
         )
         resp.raise_for_status()
         data = resp.json()
@@ -100,7 +105,7 @@ class GeminiProvider(ModelProvider):
                 ],
                 "generationConfig": {"temperature": 0},
             },
-            timeout=30,
+            timeout=self.timeout,
         )
         resp.raise_for_status()
         data = resp.json()

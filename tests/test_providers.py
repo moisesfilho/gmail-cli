@@ -99,6 +99,8 @@ class TestProviderConfig:
         assert cfg.opencode_go_model == "deepseek-v4-flash"
         assert cfg.log_days == 120
         assert cfg.response_language == "pt"
+        assert cfg.request_timeout == 300
+        assert cfg.max_body_chars == 1000
 
     @patch.dict(os.environ, {}, clear=True)
     def test_corrupted_config_file_falls_back(self, tmp_path):
@@ -123,6 +125,15 @@ class TestProviderConfig:
         assert cfg.provider == "openai"
         assert cfg.api_key == "sk-test"
         assert cfg.response_language == "pt"
+
+    @patch.dict(
+        os.environ,
+        {"GMAIL_CLI_REQUEST_TIMEOUT": "600", "GMAIL_CLI_MAX_BODY_CHARS": "500"},
+    )
+    def test_load_timeout_env(self):
+        cfg = load_config()
+        assert cfg.request_timeout == 600
+        assert cfg.max_body_chars == 500
 
     @patch.dict(os.environ, {"GMAIL_CLI_RESPONSE_LANGUAGE": "en"})
     def test_load_response_language_from_env(self):
@@ -222,6 +233,15 @@ class TestCreateProvider:
         provider = create_provider(cfg)
         assert isinstance(provider, OllamaProvider)
         assert provider.response_language == "en"
+
+    def test_providers_get_request_timeout(self):
+        cfg = ProviderConfig(provider="opencode_go", api_key="key", request_timeout=500)
+        provider = create_provider(cfg)
+        assert provider.timeout == 500
+
+        cfg = ProviderConfig(provider="ollama", request_timeout=90)
+        provider = create_provider(cfg)
+        assert provider.timeout == 90
 
 
 class GenerativeResponse:
@@ -532,6 +552,16 @@ class TestOpenCodeGoProvider:
             assert call_kwargs["json"]["messages"][0]["content"] == COMMAND_SYSTEM_PROMPT.format(
                 commands_help="help text"
             )
+
+    def test_custom_timeout(self):
+        provider = OpenCodeGoProvider(api_key="go-key", timeout=500)
+        with patch.object(requests, "post") as mock_post:
+            mock_resp = MagicMock()
+            mock_resp.json.return_value = {"choices": [{"message": {"content": "gmail search"}}]}
+            mock_post.return_value = mock_resp
+
+            provider.generate_command("search", "help")
+            assert mock_post.call_args.kwargs["timeout"] == 500
 
     def test_generate_classification_report(self):
         provider = OpenCodeGoProvider(api_key="go-key")

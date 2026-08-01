@@ -233,6 +233,12 @@ gmail config set --log-days 120
 
 # Set response language for AI-generated texts (e.g. classification report)
 gmail config set --response-language en
+
+# Set request timeout in seconds (default 300)
+gmail config set --request-timeout 300
+
+# Truncate email bodies to N chars before classification (0 disables, default 1000)
+gmail config set --max-body-chars 1000
 ```
 
 Configuration is saved in `~/.gmail-cli/config.json`.
@@ -249,6 +255,8 @@ Environment variables override file config:
 | `OPENCODE_GO_MODEL` | OpenCode Go model name |
 | `GMAIL_CLI_LOG_DAYS` | Log retention in days (default 120) |
 | `GMAIL_CLI_RESPONSE_LANGUAGE` | Language of AI-generated return texts, `pt` or `en` (default `pt`) |
+| `GMAIL_CLI_REQUEST_TIMEOUT` | Provider request timeout in seconds (default 300) |
+| `GMAIL_CLI_MAX_BODY_CHARS` | Max chars of each email body sent for classification, 0 disables (default 1000) |
 
 ### Application Logs
 

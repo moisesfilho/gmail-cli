@@ -860,6 +860,33 @@ class TestConfig:
             saved = mock_save.call_args[0][0]
             assert saved.log_days == 30
 
+    def test_set_request_timeout(self, runner):
+        with (
+            patch.object(_cli_mod, "save_config") as mock_save,
+            patch.object(_cli_mod, "load_config") as mock_load,
+        ):
+            mock_load.return_value = ProviderConfig()
+            runner.invoke(cli, ["config", "set", "--request-timeout", "600"])
+            saved = mock_save.call_args[0][0]
+            assert saved.request_timeout == 600
+
+    def test_set_max_body_chars(self, runner):
+        with (
+            patch.object(_cli_mod, "save_config") as mock_save,
+            patch.object(_cli_mod, "load_config") as mock_load,
+        ):
+            mock_load.return_value = ProviderConfig()
+            runner.invoke(cli, ["config", "set", "--max-body-chars", "500"])
+            saved = mock_save.call_args[0][0]
+            assert saved.max_body_chars == 500
+
+    def test_show_request_timeout_and_max_body_chars(self, runner):
+        with patch.object(_cli_mod, "load_config") as mock_load:
+            mock_load.return_value = ProviderConfig(request_timeout=300, max_body_chars=1000)
+            result = runner.invoke(cli, ["config", "show"])
+            assert "Request timeout (s): 300" in result.output
+            assert "Max body chars: 1000" in result.output
+
 
 class TestExport:
     def test_show_export_json(self, runner, mock_client):
@@ -1172,6 +1199,40 @@ class TestClassify:
         mock_provider.generate_classification_suggestions.assert_called_once()
         args, _ = mock_provider.generate_classification_suggestions.call_args
         assert "msg1" in args[0]
+
+    def test_classify_truncates_long_body(self, runner, mock_client):
+        long_body = "x" * 5000
+        mock_client.list_messages.return_value = [
+            Message(id="msg1", thread_id="t1", from_="a@b.com", subject="S1", date="D1")
+        ]
+        mock_client.get_message.return_value = Message(
+            id="msg1",
+            thread_id="t1",
+            from_="a@b.com",
+            subject="S1",
+            date="D1",
+            label_ids=["L1"],
+            to="recip",
+            body=long_body,
+        )
+        mock_provider = MagicMock()
+        mock_provider.generate_classification_suggestions.return_value = (
+            '[{"id": "msg1", "category": "Work"}]'
+        )
+
+        with (
+            patch.object(_cli_mod, "_create_client", return_value=mock_client),
+            patch.object(_cli_mod, "load_config") as mock_load,
+            patch.object(_cli_mod, "create_provider", return_value=mock_provider),
+            runner.isolated_filesystem(),
+        ):
+            mock_load.return_value = ProviderConfig(provider="ollama", max_body_chars=1000)
+            result = runner.invoke(cli, ["classify", "-q", "is:unread"])
+
+        assert result.exit_code == 0
+        args, _ = mock_provider.generate_classification_suggestions.call_args
+        assert len(args[0]) < 5000
+        assert "truncated" in args[0]
 
     def test_classify_by_id(self, runner, mock_client):
         mock_client.get_message.return_value = Message(

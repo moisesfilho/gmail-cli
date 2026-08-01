@@ -15,10 +15,12 @@ class OllamaProvider(ModelProvider):
         base_url: str = "http://localhost:11434",
         model: str = "llama3.2",
         response_language: str = "pt",
+        timeout: int = 60,
     ):
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.response_language = response_language
+        self.timeout = timeout
 
     def generate_query(self, natural_language: str) -> str:
         resp = requests.post(
@@ -32,7 +34,7 @@ class OllamaProvider(ModelProvider):
                 "options": {"temperature": 0},
                 "stream": False,
             },
-            timeout=60,
+            timeout=self.timeout,
         )
         resp.raise_for_status()
         return resp.json()["message"]["content"].strip()
@@ -50,7 +52,7 @@ class OllamaProvider(ModelProvider):
                 "options": {"temperature": 0},
                 "stream": False,
             },
-            timeout=60,
+            timeout=self.timeout,
         )
         resp.raise_for_status()
         return resp.json()["message"]["content"].strip()
@@ -78,7 +80,7 @@ class OllamaProvider(ModelProvider):
                 "options": {"temperature": 0},
                 "stream": False,
             },
-            timeout=60,
+            timeout=self.timeout,
         )
         resp.raise_for_status()
         return resp.json()["message"]["content"].strip()
@@ -106,7 +108,7 @@ class OllamaProvider(ModelProvider):
                 "options": {"temperature": 0},
                 "stream": False,
             },
-            timeout=60,
+            timeout=self.timeout,
         )
         resp.raise_for_status()
         return resp.json()["message"]["content"].strip()

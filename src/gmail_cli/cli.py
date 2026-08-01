@@ -93,7 +93,11 @@ def _collect_email_data(client, msgs):
         for m in bar:
             full_msgs.append(client.get_message(m.id))
     data = []
+    max_body_chars = load_config().max_body_chars
     for m in full_msgs:
+        body = m.body or ""
+        if max_body_chars > 0 and len(body) > max_body_chars:
+            body = body[:max_body_chars] + "\n...[truncated]"
         data.append(
             {
                 "id": m.id,
@@ -103,7 +107,7 @@ def _collect_email_data(client, msgs):
                 "subject": m.subject,
                 "date": m.date,
                 "label_ids": m.label_ids,
-                "body": m.body,
+                "body": body,
             }
         )
     return json.dumps(data, ensure_ascii=False), full_msgs
@@ -615,6 +619,8 @@ def config_show():
         fmt.info(f"Model: {cfg.opencode_go_model}")
     fmt.info(f"Log retention (days): {cfg.log_days}")
     fmt.info(f"Response language: {cfg.response_language}")
+    fmt.info(f"Request timeout (s): {cfg.request_timeout}")
+    fmt.info(f"Max body chars: {cfg.max_body_chars}")
 
 
 @config.command("set")
@@ -627,6 +633,8 @@ def config_show():
 @click.option("--opencode-go-model", default="deepseek-v4-flash")
 @click.option("--log-days", type=int)
 @click.option("--response-language", type=click.Choice(["pt", "en"]))
+@click.option("--request-timeout", type=int)
+@click.option("--max-body-chars", type=int)
 def config_set(**kwargs):
     """Set configuration."""
     cfg = load_config()
@@ -643,6 +651,10 @@ def config_set(**kwargs):
         cfg.log_days = kwargs["log_days"]
     if kwargs.get("response_language"):
         cfg.response_language = kwargs["response_language"]
+    if kwargs.get("request_timeout") is not None:
+        cfg.request_timeout = kwargs["request_timeout"]
+    if kwargs.get("max_body_chars") is not None:
+        cfg.max_body_chars = kwargs["max_body_chars"]
     save_config(cfg)
     fmt.info("Configuration saved to ~/.gmail-cli/config.json")
 

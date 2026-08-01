@@ -233,6 +233,12 @@ gmail config set --log-days 120
 
 # Definir o idioma dos textos de retorno gerados pela IA (ex.: relatório)
 gmail config set --response-language en
+
+# Definir o timeout de requisição em segundos (padrão 300)
+gmail config set --request-timeout 300
+
+# Truncar o corpo dos e-mails para N caracteres antes da classificação (0 desativa, padrão 1000)
+gmail config set --max-body-chars 1000
 ```
 
 A configuração é salva em `~/.gmail-cli/config.json`.
@@ -249,6 +255,8 @@ Variáveis de ambiente sobrescrevem o arquivo:
 | `OPENCODE_GO_MODEL` | Nome do modelo OpenCode Go |
 | `GMAIL_CLI_LOG_DAYS` | Retenção de logs em dias (padrão 120) |
 | `GMAIL_CLI_RESPONSE_LANGUAGE` | Idioma dos textos de retorno gerados pela IA, `pt` ou `en` (padrão `pt`) |
+| `GMAIL_CLI_REQUEST_TIMEOUT` | Timeout de requisição do provedor em segundos (padrão 300) |
+| `GMAIL_CLI_MAX_BODY_CHARS` | Máximo de caracteres do corpo de cada e-mail enviado à classificação, 0 desativa (padrão 1000) |
 
 ### Logs da Aplicação
 

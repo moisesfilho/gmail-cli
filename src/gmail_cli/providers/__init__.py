@@ -22,17 +22,26 @@ def create_provider(cfg: ProviderConfig) -> ModelProvider:
         if not cfg.api_key:
             raise ValueError("OPENAI_API_KEY not configured")
         return OpenAIProvider(
-            api_key=cfg.api_key, model=cfg.openai_model, response_language=cfg.response_language
+            api_key=cfg.api_key,
+            model=cfg.openai_model,
+            response_language=cfg.response_language,
+            timeout=cfg.request_timeout,
         )
     if cfg.provider == "gemini":
         if not cfg.api_key:
             raise ValueError("GEMINI_API_KEY not configured")
         return GeminiProvider(
-            api_key=cfg.api_key, model=cfg.gemini_model, response_language=cfg.response_language
+            api_key=cfg.api_key,
+            model=cfg.gemini_model,
+            response_language=cfg.response_language,
+            timeout=cfg.request_timeout,
         )
     if cfg.provider == "ollama":
         return OllamaProvider(
-            base_url=cfg.ollama_url, model=cfg.ollama_model, response_language=cfg.response_language
+            base_url=cfg.ollama_url,
+            model=cfg.ollama_model,
+            response_language=cfg.response_language,
+            timeout=cfg.request_timeout,
         )
     if cfg.provider == "opencode_go":
         if not cfg.api_key:
@@ -41,5 +50,6 @@ def create_provider(cfg: ProviderConfig) -> ModelProvider:
             api_key=cfg.api_key,
             model=cfg.opencode_go_model,
             response_language=cfg.response_language,
+            timeout=cfg.request_timeout,
         )
     raise ValueError(f"Unknown provider: {cfg.provider}")
