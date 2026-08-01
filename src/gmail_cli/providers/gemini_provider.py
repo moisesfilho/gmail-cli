@@ -46,7 +46,9 @@ class GeminiProvider(ModelProvider):
         data = resp.json()
         return data["candidates"][0]["content"]["parts"][0]["text"].strip()
 
-    def generate_classification_suggestions(self, emails_json: str) -> str:
+    def generate_classification_suggestions(
+        self, emails_json: str, labels: list[str] | None = None
+    ) -> str:
         resp = requests.post(
             f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent",
             params={"key": self.api_key},
@@ -56,7 +58,7 @@ class GeminiProvider(ModelProvider):
                         "parts": [
                             {
                                 "text": (
-                                    build_suggestion_system_prompt(self.response_language)
+                                    build_suggestion_system_prompt(self.response_language, labels)
                                     + "\n\n"
                                     + emails_json
                                     + "\n\nReturn ONLY the JSON array of suggestions. "
@@ -74,7 +76,9 @@ class GeminiProvider(ModelProvider):
         data = resp.json()
         return data["candidates"][0]["content"]["parts"][0]["text"].strip()
 
-    def generate_classification_report(self, emails_json: str) -> str:
+    def generate_classification_report(
+        self, emails_json: str, labels: list[str] | None = None
+    ) -> str:
         resp = requests.post(
             f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent",
             params={"key": self.api_key},
@@ -84,7 +88,7 @@ class GeminiProvider(ModelProvider):
                         "parts": [
                             {
                                 "text": (
-                                    build_classify_system_prompt(self.response_language)
+                                    build_classify_system_prompt(self.response_language, labels)
                                     + "\n\n"
                                     + emails_json
                                     + "\n\nGenerate ONLY the classification report "

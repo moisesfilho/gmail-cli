@@ -4,7 +4,7 @@
   <img src="https://img.shields.io/badge/version-v1.3.0--alpha-blue" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python">
-  <img src="https://img.shields.io/badge/tests-245%20passing-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-266%20passing-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/coverage-100%25-brightgreen" alt="Coverage">
 </p>
 
@@ -254,6 +254,10 @@ Environment variables override file config:
 
 The CLI writes a cyclic log to `~/.gmail-cli/logs/gmail-cli.log`. It records every executed command (`CMD:`), natural language prompts and generated commands (`PROMPT:` / `SUGGESTED:`), and export directories (`Export generated at:`). The log rotates daily and old files are deleted after `log_days` days (default 120, configurable via `config set --log-days` or `GMAIL_CLI_LOG_DAYS`).
 
+### Labels Cache
+
+Whenever a command runs, the CLI fetches (in parallel, without blocking) all existing Gmail labels and persists them to `~/.gmail-cli/labels_cache.json`. Those labels are reused by the classification flow (`classify`, `list messages --classify`, and `search --classify`), guiding the model to suggest categories that already exist as labels.
+
 The CLI interface and help are in English. The natural language input (`gmail prompt` and `--query`) is accepted in both Portuguese and English. AI-generated return texts (e.g. the classification report) follow the `response_language` config (`pt` or `en`).
 
 ## Project Structure
@@ -268,6 +272,7 @@ gmail-cli/
 │       ├── cli.py         # CLI interface (click)
 │       ├── formatter.py   # Output formatting (CliFormatter)
 │       ├── gmail_client.py# Gmail API wrapper (GmailClient)
+│       ├── labels_cache.py # Labels cache (labels_cache.json)
 │       ├── logging_utils.py # Cyclic rotating logger (TimedRotatingFileHandler)
 │       ├── models.py      # Dataclasses: Message, Label, Draft
 │       └── providers/     # LLM providers (OpenAI, Gemini, Ollama, OpenCodeGo)
@@ -284,6 +289,7 @@ gmail-cli/
 │   ├── test_cli.py        # Click CliRunner tests
 │   ├── test_formatter.py
 │   ├── test_gmail_client.py
+│   ├── test_labels_cache.py
 │   ├── test_logging_utils.py
 │   ├── test_models.py
 │   └── test_providers.py
@@ -295,7 +301,7 @@ gmail-cli/
 ## Tests
 
 ```bash
-pytest                    # 245 tests
+pytest                    # 266 tests
 pytest --cov=             # Coverage (100%)
 ```
 

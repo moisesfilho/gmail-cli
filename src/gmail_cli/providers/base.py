@@ -9,10 +9,14 @@ class ModelProvider(ABC):
     def generate_command(self, natural_language: str, commands_help: str) -> str: ...
 
     @abstractmethod
-    def generate_classification_report(self, emails_json: str) -> str: ...
+    def generate_classification_report(
+        self, emails_json: str, labels: list[str] | None = None
+    ) -> str: ...
 
     @abstractmethod
-    def generate_classification_suggestions(self, emails_json: str) -> str: ...
+    def generate_classification_suggestions(
+        self, emails_json: str, labels: list[str] | None = None
+    ) -> str: ...
 
 
 SYSTEM_PROMPT = (
@@ -178,9 +182,16 @@ CLASSIFY_FORMAT_EN = (
 )
 
 
-def build_classify_system_prompt(language: str = "pt") -> str:
+def _labels_section(labels: list[str] | None) -> str:
+    if not labels:
+        return ""
+    names = ", ".join(labels)
+    return f"\n\nAVAILABLE LABELS (use these exact names as categories when possible): {names}\n"
+
+
+def build_classify_system_prompt(language: str = "pt", labels: list[str] | None = None) -> str:
     format_block = CLASSIFY_FORMAT_PT if language == "pt" else CLASSIFY_FORMAT_EN
-    return CLASSIFY_INSTRUCTIONS + format_block
+    return CLASSIFY_INSTRUCTIONS + format_block + _labels_section(labels)
 
 
 SUGGESTION_INSTRUCTIONS = (
@@ -210,6 +221,6 @@ SUGGESTION_FORMAT_EN = (
 )
 
 
-def build_suggestion_system_prompt(language: str = "pt") -> str:
+def build_suggestion_system_prompt(language: str = "pt", labels: list[str] | None = None) -> str:
     format_block = SUGGESTION_FORMAT_PT if language == "pt" else SUGGESTION_FORMAT_EN
-    return SUGGESTION_INSTRUCTIONS + format_block
+    return SUGGESTION_INSTRUCTIONS + format_block + _labels_section(labels)

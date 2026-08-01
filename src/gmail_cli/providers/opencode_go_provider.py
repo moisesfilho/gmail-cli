@@ -46,13 +46,21 @@ class OpenCodeGoProvider(ModelProvider):
         system_prompt = COMMAND_SYSTEM_PROMPT.format(commands_help=commands_help)
         return self._post(system_prompt, natural_language)
 
-    def generate_classification_report(self, emails_json: str) -> str:
+    def generate_classification_report(
+        self, emails_json: str, labels: list[str] | None = None
+    ) -> str:
         user_content = (
             emails_json + "\n\nGenerate ONLY the classification report "
             "following the specified format. Nothing else."
         )
-        return self._post(build_classify_system_prompt(self.response_language), user_content)
+        return self._post(
+            build_classify_system_prompt(self.response_language, labels), user_content
+        )
 
-    def generate_classification_suggestions(self, emails_json: str) -> str:
+    def generate_classification_suggestions(
+        self, emails_json: str, labels: list[str] | None = None
+    ) -> str:
         user_content = emails_json + "\n\nReturn ONLY the JSON array of suggestions. Nothing else."
-        return self._post(build_suggestion_system_prompt(self.response_language), user_content)
+        return self._post(
+            build_suggestion_system_prompt(self.response_language, labels), user_content
+        )

@@ -56,7 +56,9 @@ class OpenAIProvider(ModelProvider):
         resp.raise_for_status()
         return resp.json()["choices"][0]["message"]["content"].strip()
 
-    def generate_classification_suggestions(self, emails_json: str) -> str:
+    def generate_classification_suggestions(
+        self, emails_json: str, labels: list[str] | None = None
+    ) -> str:
         resp = requests.post(
             "https://api.openai.com/v1/chat/completions",
             headers={
@@ -68,7 +70,7 @@ class OpenAIProvider(ModelProvider):
                 "messages": [
                     {
                         "role": "system",
-                        "content": build_suggestion_system_prompt(self.response_language),
+                        "content": build_suggestion_system_prompt(self.response_language, labels),
                     },
                     {
                         "role": "user",
@@ -85,7 +87,9 @@ class OpenAIProvider(ModelProvider):
         resp.raise_for_status()
         return resp.json()["choices"][0]["message"]["content"].strip()
 
-    def generate_classification_report(self, emails_json: str) -> str:
+    def generate_classification_report(
+        self, emails_json: str, labels: list[str] | None = None
+    ) -> str:
         resp = requests.post(
             "https://api.openai.com/v1/chat/completions",
             headers={
@@ -97,7 +101,7 @@ class OpenAIProvider(ModelProvider):
                 "messages": [
                     {
                         "role": "system",
-                        "content": build_classify_system_prompt(self.response_language),
+                        "content": build_classify_system_prompt(self.response_language, labels),
                     },
                     {
                         "role": "user",

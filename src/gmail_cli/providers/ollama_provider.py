@@ -55,7 +55,9 @@ class OllamaProvider(ModelProvider):
         resp.raise_for_status()
         return resp.json()["message"]["content"].strip()
 
-    def generate_classification_suggestions(self, emails_json: str) -> str:
+    def generate_classification_suggestions(
+        self, emails_json: str, labels: list[str] | None = None
+    ) -> str:
         resp = requests.post(
             f"{self.base_url}/api/chat",
             json={
@@ -63,7 +65,7 @@ class OllamaProvider(ModelProvider):
                 "messages": [
                     {
                         "role": "system",
-                        "content": build_suggestion_system_prompt(self.response_language),
+                        "content": build_suggestion_system_prompt(self.response_language, labels),
                     },
                     {
                         "role": "user",
@@ -81,7 +83,9 @@ class OllamaProvider(ModelProvider):
         resp.raise_for_status()
         return resp.json()["message"]["content"].strip()
 
-    def generate_classification_report(self, emails_json: str) -> str:
+    def generate_classification_report(
+        self, emails_json: str, labels: list[str] | None = None
+    ) -> str:
         resp = requests.post(
             f"{self.base_url}/api/chat",
             json={
@@ -89,7 +93,7 @@ class OllamaProvider(ModelProvider):
                 "messages": [
                     {
                         "role": "system",
-                        "content": build_classify_system_prompt(self.response_language),
+                        "content": build_classify_system_prompt(self.response_language, labels),
                     },
                     {
                         "role": "user",

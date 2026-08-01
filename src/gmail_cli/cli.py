@@ -2,12 +2,14 @@
 import json
 import os
 import shlex
+import threading
 
 import click
 
 from .auth import AuthError, AuthService
 from .formatter import CliFormatter
 from .gmail_client import GmailClient, GmailError
+from .labels_cache import label_names, load_labels, refresh_labels
 from .logging_utils import get_logger
 from .models import Message
 from .providers import create_provider, load_config, save_config
@@ -111,7 +113,7 @@ def _classify_messages(client, msgs):
     emails_json, _ = _collect_email_data(client, msgs)
     config = load_config()
     provider = create_provider(config)
-    report = provider.generate_classification_report(emails_json)
+    report = provider.generate_classification_report(emails_json, labels=label_names(load_labels()))
     click.echo(report)
 
 
@@ -150,11 +152,24 @@ def _apply_suggestion_labels(client, suggestions):
 fmt = CliFormatter()
 
 
+def _refresh_labels_worker():
+    try:
+        client = _create_client()
+        refresh_labels(client)
+    except Exception:  # noqa: BLE001
+        pass  # nosec B110
+
+
+def _refresh_labels_background():
+    threading.Thread(target=_refresh_labels_worker, daemon=True).start()
+
+
 class LoggingGroup(click.Group):
     def invoke(self, ctx):
         parts = list(getattr(ctx, "protected_args", ())) + list(ctx.args)
         if parts:
             get_logger().info("CMD: gmail %s", " ".join(parts))
+        _refresh_labels_background()
         return super().invoke(ctx)
 
     def get_help(self, ctx):
@@ -557,7 +572,9 @@ def classify(query, max_results, message_id, apply):
         emails_json, full_msgs = _collect_email_data(client, msgs)
         config = load_config()
         provider = create_provider(config)
-        raw = provider.generate_classification_suggestions(emails_json)
+        raw = provider.generate_classification_suggestions(
+            emails_json, labels=label_names(load_labels())
+        )
         try:
             suggestions = _parse_suggestions(raw)
         except (json.JSONDecodeError, ValueError) as e:

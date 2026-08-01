@@ -14,6 +14,7 @@ from gmail_cli.cli import _create_client
 from gmail_cli.models import Draft, Label, Message
 
 _cli_mod = sys.modules["gmail_cli.cli"]
+_REAL_REFRESH_BACKGROUND = _cli_mod._refresh_labels_background
 
 
 @pytest.fixture
@@ -1367,6 +1368,45 @@ class TestApplySuggestionLabels:
         mock_client.modify_message.assert_called_once_with(
             "m1", add_labels=["EXIST"], remove_labels=["INBOX"]
         )
+
+
+class TestRefreshLabels:
+    def test_worker_refreshes_labels(self, mock_client):
+        mock_client.list_labels.return_value = [Label(id="L1", name="Work")]
+        with (
+            patch.object(_cli_mod, "_create_client", return_value=mock_client),
+            patch.object(_cli_mod, "refresh_labels") as mock_refresh,
+        ):
+            _cli_mod._refresh_labels_worker()
+            mock_refresh.assert_called_once_with(mock_client)
+
+    def test_worker_swallows_errors(self):
+        with (
+            patch.object(_cli_mod, "_create_client", side_effect=RuntimeError("no auth")),
+            patch.object(_cli_mod, "refresh_labels") as mock_refresh,
+        ):
+            _cli_mod._refresh_labels_worker()
+            mock_refresh.assert_not_called()
+
+    def test_background_spawns_daemon_thread(self):
+        captured = {}
+
+        class FakeThread:
+            def __init__(self, target, daemon=False):
+                captured["target"] = target
+                captured["daemon"] = daemon
+
+            def start(self):
+                captured["started"] = True
+
+        with (
+            patch.object(_cli_mod, "_refresh_labels_background", _REAL_REFRESH_BACKGROUND),
+            patch.object(_cli_mod.threading, "Thread", FakeThread),
+        ):
+            _cli_mod._refresh_labels_background()
+        assert captured["daemon"] is True
+        assert captured["started"] is True
+        assert callable(captured["target"])
 
 
 class TestLogging:

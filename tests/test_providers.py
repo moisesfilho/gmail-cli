@@ -68,6 +68,24 @@ class TestBuildSuggestionSystemPrompt:
         assert "You are an email classifier." in build_suggestion_system_prompt()
         assert "Return ONLY a JSON array" in build_suggestion_system_prompt("en")
 
+    def test_with_labels_lists_available_labels(self):
+        prompt = build_suggestion_system_prompt(labels=["Work", "Personal"])
+        assert "AVAILABLE LABELS" in prompt
+        assert "Work, Personal" in prompt
+
+    def test_without_labels_has_no_section(self):
+        assert "AVAILABLE LABELS" not in build_suggestion_system_prompt()
+
+
+class TestBuildClassifySystemPromptLabels:
+    def test_with_labels_lists_available_labels(self):
+        prompt = build_classify_system_prompt(labels=["Work"])
+        assert "AVAILABLE LABELS" in prompt
+        assert "Work" in prompt
+
+    def test_without_labels_has_no_section(self):
+        assert "AVAILABLE LABELS" not in build_classify_system_prompt()
+
 
 class TestProviderConfig:
     def test_default_values(self):
@@ -317,6 +335,21 @@ class TestOpenAIProvider:
             assert (
                 call_kwargs["json"]["messages"][1]["content"]
                 == "[]\n\nReturn ONLY the JSON array of suggestions. Nothing else."
+            )
+
+    def test_generate_classification_suggestions_with_labels(self):
+        provider = OpenAIProvider(api_key="sk-test")
+        with patch.object(requests, "post") as mock_post:
+            mock_resp = MagicMock()
+            mock_resp.json.return_value = {
+                "choices": [{"message": {"content": '[{"id": "1", "category": "Work"}]'}}]
+            }
+            mock_post.return_value = mock_resp
+
+            provider.generate_classification_suggestions("[]", labels=["Work"])
+            call_kwargs = mock_post.call_args.kwargs
+            assert call_kwargs["json"]["messages"][0]["content"] == build_suggestion_system_prompt(
+                labels=["Work"]
             )
 
 
