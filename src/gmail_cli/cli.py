@@ -85,7 +85,7 @@ def _export_messages(messages, export_path: str):
         _export_messages(messages, export_path + ".json")
 
 
-def _classify_messages(client, msgs):
+def _collect_email_data(client, msgs):
     full_msgs = []
     with click.progressbar(msgs, label="Loading email data") as bar:
         for m in bar:
@@ -104,11 +104,45 @@ def _classify_messages(client, msgs):
                 "body": m.body,
             }
         )
-    emails_json = json.dumps(data, ensure_ascii=False)
+    return json.dumps(data, ensure_ascii=False), full_msgs
+
+
+def _classify_messages(client, msgs):
+    emails_json, _ = _collect_email_data(client, msgs)
     config = load_config()
     provider = create_provider(config)
     report = provider.generate_classification_report(emails_json)
     click.echo(report)
+
+
+def _parse_suggestions(raw_text):
+    text = raw_text.strip()
+    if text.startswith("```"):
+        text = text.strip("`")
+        if text.startswith("json"):
+            text = text[4:].strip()
+    data = json.loads(text)
+    if not isinstance(data, list):
+        raise ValueError("Expected a JSON array of suggestions")
+    suggestions = []
+    for item in data:
+        if not isinstance(item, dict) or "id" not in item or "category" not in item:
+            raise ValueError("Each suggestion must have 'id' and 'category'")
+        suggestions.append({"id": str(item["id"]), "category": str(item["category"])})
+    return suggestions
+
+
+def _apply_suggestion_labels(client, suggestions):
+    labels = client.list_labels()
+    existing = {label.name: label.id for label in labels}
+    for category in dict.fromkeys(s["category"] for s in suggestions):
+        if category not in existing:
+            created = client.create_label(category)
+            existing[category] = created["id"]
+        label_id = existing[category]
+        for suggestion in suggestions:
+            if suggestion["category"] == category:
+                client.modify_message(suggestion["id"], add_labels=[label_id])
 
 
 fmt = CliFormatter()
@@ -498,6 +532,42 @@ def search(query, max_results, export, classify):
             fmt.info(f"Data exported successfully to: {export}")
         else:
             fmt.list_messages(msgs)
+    except (AuthError, GmailError) as e:
+        fmt.error(str(e))
+
+
+@cli.command()
+@click.option("--query", "-q", default="", help="Search filter")
+@click.option("--max", "max_results", default=20, help="Maximum number")
+@click.option("--id", "message_id", help="Classify a single message by ID")
+@click.option("--apply", is_flag=True, help="Create suggested labels and apply them")
+def classify(query, max_results, message_id, apply):
+    """Suggest a classification category for each email."""
+    try:
+        client = _create_client()
+        if message_id:
+            msgs = [Message(id=message_id, thread_id="", from_="", subject="", date="")]
+        else:
+            msgs = client.list_messages(query=query, max_results=max_results)
+            if not msgs:
+                fmt.info("No messages found.")
+                return
+        emails_json, full_msgs = _collect_email_data(client, msgs)
+        config = load_config()
+        provider = create_provider(config)
+        raw = provider.generate_classification_suggestions(emails_json)
+        try:
+            suggestions = _parse_suggestions(raw)
+        except (json.JSONDecodeError, ValueError) as e:
+            fmt.error(f"Could not parse model suggestions: {e}")
+            return
+        subject_map = {m.id: m.subject for m in full_msgs}
+        for suggestion in suggestions:
+            suggestion["subject"] = subject_map.get(suggestion["id"], "")
+        if apply:
+            _apply_suggestion_labels(client, suggestions)
+            fmt.info(f"Applied {len(suggestions)} suggestion(s) as labels.")
+        fmt.list_suggestions(suggestions)
     except (AuthError, GmailError) as e:
         fmt.error(str(e))
 

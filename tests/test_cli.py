@@ -1124,6 +1124,241 @@ class TestExport:
             assert "Body1" in args[0]
 
 
+class TestClassify:
+    def _run_classify(self, runner, mock_client, mock_provider, args, raw=None):
+        if raw is None:
+            raw = '[{"id": "msg1", "category": "Work"}]'
+        mock_provider.generate_classification_suggestions.return_value = raw
+        with (
+            patch.object(_cli_mod, "_create_client", return_value=mock_client),
+            patch.object(_cli_mod, "load_config") as mock_load,
+            patch.object(_cli_mod, "create_provider", return_value=mock_provider),
+            runner.isolated_filesystem(),
+        ):
+            mock_load.return_value = ProviderConfig(provider="ollama")
+            return runner.invoke(cli, args)
+
+    def test_classify_with_query(self, runner, mock_client):
+        mock_client.list_messages.return_value = [
+            Message(
+                id="msg1",
+                thread_id="t1",
+                from_="a@b.com",
+                subject="S1",
+                date="D1",
+                label_ids=["L1"],
+            )
+        ]
+        mock_client.get_message.return_value = Message(
+            id="msg1",
+            thread_id="t1",
+            from_="a@b.com",
+            subject="S1",
+            date="D1",
+            label_ids=["L1"],
+            to="recip",
+            body="Body1",
+        )
+        mock_provider = MagicMock()
+
+        result = self._run_classify(
+            runner, mock_client, mock_provider, ["classify", "-q", "is:unread"]
+        )
+
+        assert result.exit_code == 0
+        assert "Work" in result.output
+        assert "S1" in result.output
+        mock_provider.generate_classification_suggestions.assert_called_once()
+        args, _ = mock_provider.generate_classification_suggestions.call_args
+        assert "msg1" in args[0]
+
+    def test_classify_by_id(self, runner, mock_client):
+        mock_client.get_message.return_value = Message(
+            id="msg1",
+            thread_id="t1",
+            from_="a@b.com",
+            subject="S1",
+            date="D1",
+            label_ids=["L1"],
+            to="recip",
+            body="Body1",
+        )
+        mock_provider = MagicMock()
+
+        result = self._run_classify(
+            runner, mock_client, mock_provider, ["classify", "--id", "msg1"]
+        )
+
+        assert result.exit_code == 0
+        assert "Work" in result.output
+        mock_client.list_messages.assert_not_called()
+
+    def test_classify_no_messages(self, runner, mock_client):
+        mock_client.list_messages.return_value = []
+        mock_provider = MagicMock()
+
+        result = self._run_classify(runner, mock_client, mock_provider, ["classify", "-q", "nope"])
+
+        assert result.exit_code == 0
+        assert "No messages found." in result.output
+        mock_provider.generate_classification_suggestions.assert_not_called()
+
+    def test_classify_apply(self, runner, mock_client):
+        mock_client.list_messages.return_value = [
+            Message(
+                id="msg1",
+                thread_id="t1",
+                from_="a@b.com",
+                subject="S1",
+                date="D1",
+                label_ids=["L1"],
+            )
+        ]
+        mock_client.get_message.return_value = Message(
+            id="msg1",
+            thread_id="t1",
+            from_="a@b.com",
+            subject="S1",
+            date="D1",
+            label_ids=["L1"],
+            to="recip",
+            body="Body1",
+        )
+        mock_client.list_labels.return_value = []
+        mock_client.create_label.return_value = {"id": "LABEL1", "name": "Work"}
+        mock_provider = MagicMock()
+
+        result = self._run_classify(
+            runner, mock_client, mock_provider, ["classify", "-q", "is:unread", "--apply"]
+        )
+
+        assert result.exit_code == 0
+        assert "Applied 1 suggestion(s) as labels." in result.output
+        mock_client.create_label.assert_called_once_with("Work")
+        mock_client.modify_message.assert_called_once_with("msg1", add_labels=["LABEL1"])
+
+    def test_classify_apply_existing_label(self, runner, mock_client):
+        mock_client.list_messages.return_value = [
+            Message(
+                id="msg1",
+                thread_id="t1",
+                from_="a@b.com",
+                subject="S1",
+                date="D1",
+                label_ids=["L1"],
+            )
+        ]
+        mock_client.get_message.return_value = Message(
+            id="msg1",
+            thread_id="t1",
+            from_="a@b.com",
+            subject="S1",
+            date="D1",
+            label_ids=["L1"],
+            to="recip",
+            body="Body1",
+        )
+        mock_client.list_labels.return_value = [Label(id="EXIST", name="Work")]
+        mock_provider = MagicMock()
+
+        result = self._run_classify(
+            runner, mock_client, mock_provider, ["classify", "-q", "is:unread", "--apply"]
+        )
+
+        assert result.exit_code == 0
+        mock_client.create_label.assert_not_called()
+        mock_client.modify_message.assert_called_once_with("msg1", add_labels=["EXIST"])
+
+    def test_classify_invalid_suggestions(self, runner, mock_client):
+        mock_client.list_messages.return_value = [
+            Message(
+                id="msg1",
+                thread_id="t1",
+                from_="a@b.com",
+                subject="S1",
+                date="D1",
+                label_ids=["L1"],
+            )
+        ]
+        mock_client.get_message.return_value = Message(
+            id="msg1",
+            thread_id="t1",
+            from_="a@b.com",
+            subject="S1",
+            date="D1",
+            label_ids=["L1"],
+            to="recip",
+            body="Body1",
+        )
+        mock_provider = MagicMock()
+
+        result = self._run_classify(
+            runner, mock_client, mock_provider, ["classify", "-q", "x"], raw="not json at all"
+        )
+
+        assert result.exit_code == 0
+        assert "Could not parse model suggestions" in result.output
+
+    def test_classify_gmail_error(self, runner, mock_client):
+        mock_client.list_messages.side_effect = GmailError("boom")
+        mock_provider = MagicMock()
+
+        result = self._run_classify(runner, mock_client, mock_provider, ["classify", "-q", "x"])
+
+        assert result.exit_code == 0
+        assert "Error: boom" in result.output
+
+
+class TestParseSuggestions:
+    def test_parses_plain_json(self):
+        result = _cli_mod._parse_suggestions('[{"id": "1", "category": "Work"}]')
+        assert result == [{"id": "1", "category": "Work"}]
+
+    def test_parses_fenced_json(self):
+        result = _cli_mod._parse_suggestions('```json\n[{"id": "1", "category": "Work"}]\n```')
+        assert result == [{"id": "1", "category": "Work"}]
+
+    def test_parses_backtick_fence(self):
+        result = _cli_mod._parse_suggestions('```[{"id": "1", "category": "Work"}]```')
+        assert result == [{"id": "1", "category": "Work"}]
+
+    def test_rejects_non_array(self):
+        with pytest.raises(ValueError, match="JSON array"):
+            _cli_mod._parse_suggestions('{"id": "1"}')
+
+    def test_rejects_missing_keys(self):
+        with pytest.raises(ValueError, match=r"id.*category"):
+            _cli_mod._parse_suggestions('[{"id": "1"}]')
+
+
+class TestApplySuggestionLabels:
+    def test_creates_and_applies(self):
+        mock_client = MagicMock()
+        mock_client.list_labels.return_value = []
+        mock_client.create_label.return_value = {"id": "L1", "name": "Work"}
+        suggestions = [
+            {"id": "m1", "category": "Work"},
+            {"id": "m2", "category": "Work"},
+            {"id": "m3", "category": "Personal"},
+        ]
+
+        _cli_mod._apply_suggestion_labels(mock_client, suggestions)
+
+        mock_client.create_label.assert_any_call("Work")
+        mock_client.create_label.assert_any_call("Personal")
+        assert mock_client.modify_message.call_count == 3
+
+    def test_uses_existing_labels(self):
+        mock_client = MagicMock()
+        mock_client.list_labels.return_value = [Label(id="EXIST", name="Work")]
+        suggestions = [{"id": "m1", "category": "Work"}]
+
+        _cli_mod._apply_suggestion_labels(mock_client, suggestions)
+
+        mock_client.create_label.assert_not_called()
+        mock_client.modify_message.assert_called_once_with("m1", add_labels=["EXIST"])
+
+
 class TestLogging:
     def _read_log(self, tmp_path):
         log_file = tmp_path / "logs" / "gmail-cli.log"

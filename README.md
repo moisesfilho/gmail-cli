@@ -1,10 +1,10 @@
 # gmail-cli
 
 <p>
-  <img src="https://img.shields.io/badge/version-v1.2.0--alpha-blue" alt="Version">
+  <img src="https://img.shields.io/badge/version-v1.3.0--alpha-blue" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python">
-  <img src="https://img.shields.io/badge/tests-215%20passing-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-245%20passing-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/coverage-100%25-brightgreen" alt="Coverage">
 </p>
 
@@ -24,6 +24,7 @@ CLI to manage Gmail emails, labels, drafts, and attachments from the terminal.
 - **Drafts** — create, send, and delete
 - **Download attachments** from a message
 - **AI Classification** — classify emails by category via LLM
+- **Per-email classification suggestions** — `gmail classify` returns one suggested category per email (JSON) with an option to apply them as labels
 - **Natural Language Prompt** — describe what you want in plain text
 - **Cyclic Application Logs** — records every command, prompt, and suggested response, keeping only the configured number of days (default 120)
 
@@ -154,6 +155,26 @@ gmail prompt "classifique os emails do linkedin"
 
 The classification report includes total count, date range, senders, and category breakdown with percentages.
 
+### Per-email classification suggestions
+
+Suggest a category for each email (a list or a single email):
+
+```bash
+# Suggest categories for the last 20 emails
+gmail classify
+
+# Suggest with a filter and limit
+gmail classify -q "is:unread" --max 50
+
+# Suggest for a single email
+gmail classify --id <message_id>
+
+# Create labels from suggested categories and apply them to each email
+gmail classify -q "is:unread" --apply
+```
+
+The output lists `id | category | subject` for each email. With `--apply`, the suggested categories are created as labels (if they do not exist yet) and each email gets its own label applied automatically.
+
 ### Exporting Emails for AI/RAG
 
 Export email details and bodies to formats optimized for LLM processing/RAG (JSON, JSONL, Markdown) using the `--export` / `-e` option with `show`, `search`, and `list messages` commands:
@@ -274,7 +295,7 @@ gmail-cli/
 ## Tests
 
 ```bash
-pytest                    # 215 tests
+pytest                    # 245 tests
 pytest --cov=             # Coverage (100%)
 ```
 

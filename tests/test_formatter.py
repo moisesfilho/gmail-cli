@@ -69,3 +69,17 @@ class TestCliFormatter:
         captured = capsys.readouterr()
         assert "📥" in captured.out
         assert sample_message.subject in captured.out
+
+    def test_list_suggestions(self, capsys):
+        fmt = CliFormatter()
+        suggestions = [
+            {"id": "msg123456", "category": "Work", "subject": "Hello"},
+            {"id": "msg7890", "category": "Personal", "subject": "Hi"},
+        ]
+        fmt.list_suggestions(suggestions)
+        captured = capsys.readouterr()
+        assert "msg1234" in captured.out
+        assert "Work" in captured.out
+        assert "Hello" in captured.out
+        assert "Personal" in captured.out
+        assert "Hi" in captured.out

@@ -1,6 +1,12 @@
 import requests
 
-from .base import COMMAND_SYSTEM_PROMPT, SYSTEM_PROMPT, ModelProvider, build_classify_system_prompt
+from .base import (
+    COMMAND_SYSTEM_PROMPT,
+    SYSTEM_PROMPT,
+    ModelProvider,
+    build_classify_system_prompt,
+    build_suggestion_system_prompt,
+)
 
 BASE_URL = "https://opencode.ai/zen/go/v1"
 
@@ -46,3 +52,7 @@ class OpenCodeGoProvider(ModelProvider):
             "following the specified format. Nothing else."
         )
         return self._post(build_classify_system_prompt(self.response_language), user_content)
+
+    def generate_classification_suggestions(self, emails_json: str) -> str:
+        user_content = emails_json + "\n\nReturn ONLY the JSON array of suggestions. Nothing else."
+        return self._post(build_suggestion_system_prompt(self.response_language), user_content)

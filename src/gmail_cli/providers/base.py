@@ -11,6 +11,9 @@ class ModelProvider(ABC):
     @abstractmethod
     def generate_classification_report(self, emails_json: str) -> str: ...
 
+    @abstractmethod
+    def generate_classification_suggestions(self, emails_json: str) -> str: ...
+
 
 SYSTEM_PROMPT = (
     "You are a Gmail search query generator. "
@@ -178,3 +181,35 @@ CLASSIFY_FORMAT_EN = (
 def build_classify_system_prompt(language: str = "pt") -> str:
     format_block = CLASSIFY_FORMAT_PT if language == "pt" else CLASSIFY_FORMAT_EN
     return CLASSIFY_INSTRUCTIONS + format_block
+
+
+SUGGESTION_INSTRUCTIONS = (
+    "You are an email classifier. "
+    "Given a JSON list of emails, suggest a single classification category "
+    "for each email.\n\n"
+    "RULES:\n"
+    "- Return ONLY a JSON array, nothing else\n"
+    "- Do not use markdown, code fences or extra text\n"
+    '- Each item must be an object with exactly "id" and "category" keys\n'
+    "- Use short, concise category names\n"
+    "- Assign each email to a single category\n\n"
+)
+
+SUGGESTION_FORMAT_PT = (
+    'EXACT FORMAT (JSON array): [{"id": "<email id>", "category": "<categoria>"}, ...]\n\n'
+    "EXAMPLE:\n"
+    '[{"id": "1a2b3c", "category": "Trabalho"}, '
+    '{"id": "4d5e6f", "category": "Promoções"}]'
+)
+
+SUGGESTION_FORMAT_EN = (
+    'EXACT FORMAT (JSON array): [{"id": "<email id>", "category": "<category>"}, ...]\n\n'
+    "EXAMPLE:\n"
+    '[{"id": "1a2b3c", "category": "Work"}, '
+    '{"id": "4d5e6f", "category": "Promotions"}]'
+)
+
+
+def build_suggestion_system_prompt(language: str = "pt") -> str:
+    format_block = SUGGESTION_FORMAT_PT if language == "pt" else SUGGESTION_FORMAT_EN
+    return SUGGESTION_INSTRUCTIONS + format_block

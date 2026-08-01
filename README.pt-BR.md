@@ -1,10 +1,10 @@
 # gmail-cli
 
 <p>
-  <img src="https://img.shields.io/badge/vers%C3%A3o-v1.2.0--alpha-blue" alt="Versão">
+  <img src="https://img.shields.io/badge/vers%C3%A3o-v1.3.0--alpha-blue" alt="Versão">
   <img src="https://img.shields.io/badge/licen%C3%A7a-MIT-green" alt="Licença">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python">
-  <img src="https://img.shields.io/badge/testes-215%20passando-brightgreen" alt="Testes">
+  <img src="https://img.shields.io/badge/testes-245%20passando-brightgreen" alt="Testes">
   <img src="https://img.shields.io/badge/cobertura-100%25-brightgreen" alt="Cobertura">
 </p>
 
@@ -24,6 +24,7 @@ CLI para gerenciar e-mail, labels, rascunhos e anexos do Gmail via terminal.
 - **Rascunhos** — criar, enviar e deletar
 - **Baixar anexos** de uma mensagem
 - **Classificação por IA** — classificar e-mails por categoria via LLM
+- **Sugestões de classificação por e-mail** — `gmail classify` retorna uma categoria sugerida por e-mail (JSON) com opção de aplicar como labels
 - **Comando em Linguagem Natural** — descreva o que quer em texto simples
 - **Logs cíclicos da aplicação** — registra todos os comandos, prompts e respostas sugeridas, mantendo apenas o número de dias configurado (padrão 120)
 
@@ -154,6 +155,26 @@ gmail prompt "classifique os emails do linkedin"
 
 O relatório de classificação inclui total de e-mails, período, remetentes e detalhamento por categoria com percentuais.
 
+### Sugestão de classificação por e-mail
+
+Sugira uma categoria para cada e-mail (lista ou um e-mail específico):
+
+```bash
+# Sugerir categoria para os últimos 20 e-mails
+gmail classify
+
+# Sugerir com filtro e limite
+gmail classify -q "is:unread" --max 50
+
+# Sugerir para um e-mail específico
+gmail classify --id <message_id>
+
+# Criar labels das categorias sugeridas e aplicar em cada e-mail
+gmail classify -q "is:unread" --apply
+```
+
+A saída lista `id | categoria | assunto` para cada e-mail. Com `--apply`, as categorias sugeridas são criadas como labels (se ainda não existirem) e cada e-mail recebe a sua label automaticamente.
+
 ### Exportação de E-mails para IA/RAG
 
 Exporte os dados e corpos de e-mails em formatos otimizados para processamento de IA/RAG (JSON, JSONL, Markdown) usando a opção `--export` / `-e` nos comandos `show`, `search` e `list messages`:
@@ -274,7 +295,7 @@ gmail-cli/
 ## Testes
 
 ```bash
-pytest                    # 215 testes
+pytest                    # 245 testes
 pytest --cov=             # Cobertura (100%)
 ```
 

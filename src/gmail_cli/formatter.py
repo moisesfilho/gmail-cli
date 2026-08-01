@@ -44,6 +44,13 @@ class CliFormatter:
         for d in drafts:
             self.list_draft(d)
 
+    def list_suggestions(self, suggestions):
+        for suggestion in suggestions:
+            click.echo(
+                f"{suggestion['id'][:8]}  {suggestion['category']:15s}  "
+                f"{suggestion.get('subject', '')}"
+            )
+
     def info(self, message):
         click.echo(message)
 

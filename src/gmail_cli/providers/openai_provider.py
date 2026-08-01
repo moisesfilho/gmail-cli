@@ -1,6 +1,12 @@
 import requests
 
-from .base import COMMAND_SYSTEM_PROMPT, SYSTEM_PROMPT, ModelProvider, build_classify_system_prompt
+from .base import (
+    COMMAND_SYSTEM_PROMPT,
+    SYSTEM_PROMPT,
+    ModelProvider,
+    build_classify_system_prompt,
+    build_suggestion_system_prompt,
+)
 
 
 class OpenAIProvider(ModelProvider):
@@ -42,6 +48,35 @@ class OpenAIProvider(ModelProvider):
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": natural_language},
+                ],
+                "temperature": 0,
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"]["content"].strip()
+
+    def generate_classification_suggestions(self, emails_json: str) -> str:
+        resp = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": self.model,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": build_suggestion_system_prompt(self.response_language),
+                    },
+                    {
+                        "role": "user",
+                        "content": (
+                            emails_json + "\n\nReturn ONLY the JSON array of suggestions. "
+                            "Nothing else."
+                        ),
+                    },
                 ],
                 "temperature": 0,
             },

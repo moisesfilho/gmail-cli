@@ -19,6 +19,7 @@ from gmail_cli.providers.base import (
     COMMAND_SYSTEM_PROMPT,
     SYSTEM_PROMPT,
     build_classify_system_prompt,
+    build_suggestion_system_prompt,
 )
 from gmail_cli.providers.config import DATA_DIR
 
@@ -50,6 +51,22 @@ class TestBuildClassifySystemPrompt:
     def test_instructions_are_in_english(self):
         assert "You are an email classifier." in build_classify_system_prompt()
         assert "You are an email classifier." in build_classify_system_prompt("en")
+
+
+class TestBuildSuggestionSystemPrompt:
+    def test_default_uses_portuguese_format(self):
+        prompt = build_suggestion_system_prompt()
+        assert "categoria" in prompt
+        assert "category" in build_suggestion_system_prompt("en")
+        assert '"id"' in prompt
+
+    def test_english_language_uses_english_format(self):
+        assert "category" in build_suggestion_system_prompt("en")
+        assert "categoria" not in build_suggestion_system_prompt("en")
+
+    def test_instructions_are_in_english(self):
+        assert "You are an email classifier." in build_suggestion_system_prompt()
+        assert "Return ONLY a JSON array" in build_suggestion_system_prompt("en")
 
 
 class TestProviderConfig:
@@ -283,6 +300,25 @@ class TestOpenAIProvider:
                 "following the specified format. Nothing else."
             )
 
+    def test_generate_classification_suggestions(self):
+        provider = OpenAIProvider(api_key="sk-test")
+        with patch.object(requests, "post") as mock_post:
+            mock_resp = MagicMock()
+            mock_resp.json.return_value = {
+                "choices": [{"message": {"content": '[{"id": "1", "category": "Work"}]'}}]
+            }
+            mock_post.return_value = mock_resp
+
+            result = provider.generate_classification_suggestions("[]")
+            assert result == '[{"id": "1", "category": "Work"}]'
+            mock_post.assert_called_once()
+            call_kwargs = mock_post.call_args.kwargs
+            assert call_kwargs["json"]["messages"][0]["content"] == build_suggestion_system_prompt()
+            assert (
+                call_kwargs["json"]["messages"][1]["content"]
+                == "[]\n\nReturn ONLY the JSON array of suggestions. Nothing else."
+            )
+
 
 class TestGeminiProvider:
     def test_generate_query(self):
@@ -330,6 +366,24 @@ class TestGeminiProvider:
                 + "\n\n"
                 + "[]\n\nGenerate ONLY the classification report "
                 "following the specified format. Nothing else."
+            )
+            assert (
+                mock_post.call_args.kwargs["json"]["contents"][0]["parts"][0]["text"]
+                == expected_prompt
+            )
+
+    def test_generate_classification_suggestions(self):
+        provider = GeminiProvider(api_key="gem-key")
+        with patch.object(requests, "post") as mock_post:
+            mock_post.return_value = GenerativeResponse('[{"id": "1", "category": "Work"}]')
+
+            result = provider.generate_classification_suggestions("[]")
+            assert result == '[{"id": "1", "category": "Work"}]'
+            assert "gem-key" in mock_post.call_args.kwargs["params"]["key"]
+            expected_prompt = (
+                build_suggestion_system_prompt()
+                + "\n\n"
+                + "[]\n\nReturn ONLY the JSON array of suggestions. Nothing else."
             )
             assert (
                 mock_post.call_args.kwargs["json"]["contents"][0]["parts"][0]["text"]
@@ -396,6 +450,21 @@ class TestOllamaProvider:
                 "following the specified format. Nothing else."
             )
 
+    def test_generate_classification_suggestions(self):
+        provider = OllamaProvider()
+        with patch.object(requests, "post") as mock_post:
+            mock_post.return_value = ChatResponse('[{"id": "1", "category": "Work"}]')
+
+            result = provider.generate_classification_suggestions("[]")
+            assert result == '[{"id": "1", "category": "Work"}]'
+            assert mock_post.call_args.args[0] == "http://localhost:11434/api/chat"
+            call_kwargs = mock_post.call_args.kwargs
+            assert call_kwargs["json"]["messages"][0]["content"] == build_suggestion_system_prompt()
+            assert (
+                call_kwargs["json"]["messages"][1]["content"]
+                == "[]\n\nReturn ONLY the JSON array of suggestions. Nothing else."
+            )
+
 
 class TestOpenCodeGoProvider:
     def test_generate_query(self):
@@ -448,4 +517,22 @@ class TestOpenCodeGoProvider:
                 call_kwargs["json"]["messages"][1]["content"]
                 == "[]\n\nGenerate ONLY the classification report "
                 "following the specified format. Nothing else."
+            )
+
+    def test_generate_classification_suggestions(self):
+        provider = OpenCodeGoProvider(api_key="go-key")
+        with patch.object(requests, "post") as mock_post:
+            mock_resp = MagicMock()
+            mock_resp.json.return_value = {
+                "choices": [{"message": {"content": '[{"id": "1", "category": "Work"}]'}}]
+            }
+            mock_post.return_value = mock_resp
+
+            result = provider.generate_classification_suggestions("[]")
+            assert result == '[{"id": "1", "category": "Work"}]'
+            call_kwargs = mock_post.call_args.kwargs
+            assert call_kwargs["json"]["messages"][0]["content"] == build_suggestion_system_prompt()
+            assert (
+                call_kwargs["json"]["messages"][1]["content"]
+                == "[]\n\nReturn ONLY the JSON array of suggestions. Nothing else."
             )
