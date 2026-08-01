@@ -4,7 +4,7 @@
   <img src="https://img.shields.io/badge/version-v1.3.0--alpha-blue" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python">
-  <img src="https://img.shields.io/badge/tests-266%20passing-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-269%20passing-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/coverage-100%25-brightgreen" alt="Coverage">
 </p>
 
@@ -301,7 +301,7 @@ gmail-cli/
 ## Tests
 
 ```bash
-pytest                    # 266 tests
+pytest                    # 269 tests
 pytest --cov=             # Coverage (100%)
 ```
 

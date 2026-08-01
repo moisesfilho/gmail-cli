@@ -1,3 +1,4 @@
+import json
 from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
@@ -15,6 +16,28 @@ from gmail_cli.auth import (
 class TestAuthService:
     def test_load_credentials_returns_none_when_no_token(self):
         with patch("os.path.exists", return_value=False):
+            service = AuthService()
+            assert service._load_credentials() is None
+
+    def test_load_credentials_returns_none_on_corrupt_token(self):
+        with (
+            patch("os.path.exists", return_value=True),
+            patch("builtins.open", mock_open(read_data="")),
+            patch("json.load", side_effect=json.JSONDecodeError("bad", "", 0)),
+        ):
+            service = AuthService()
+            assert service._load_credentials() is None
+
+    def test_load_credentials_returns_none_on_credentials_error(self):
+        with (
+            patch("os.path.exists", return_value=True),
+            patch("builtins.open", mock_open(read_data='{"token": "abc"}')),
+            patch("json.load", return_value={"token": "abc"}),
+            patch(
+                "google.oauth2.credentials.Credentials.from_authorized_user_info",
+                side_effect=ValueError("bad creds"),
+            ),
+        ):
             service = AuthService()
             assert service._load_credentials() is None
 
@@ -37,14 +60,33 @@ class TestAuthService:
         mock_creds = MagicMock()
         mock_creds.to_json.return_value = '{"token": "abc"}'
         with (
-            patch("builtins.open", mock_open()) as m,
+            patch("tempfile.mkstemp", return_value=(1, "/tmp/token.abc.tmp")),
+            patch("os.fdopen", mock_open()) as m,
+            patch("os.replace") as mock_replace,
             patch("json.loads", return_value={"token": "abc"}),
             patch("json.dump") as mock_dump,
         ):
             service = AuthService()
             service._save_credentials(mock_creds)
-            m.assert_called_once_with(service.TOKEN_FILE, "w")
+            m.assert_called_once_with(1, "w")
             mock_dump.assert_called_once_with({"token": "abc"}, m())
+            mock_replace.assert_called_once_with("/tmp/token.abc.tmp", service.TOKEN_FILE)
+
+    def test_save_credentials_cleans_temp_on_error(self):
+        mock_creds = MagicMock()
+        mock_creds.to_json.return_value = '{"token": "abc"}'
+        with (
+            patch("tempfile.mkstemp", return_value=(1, "/tmp/token.abc.tmp")),
+            patch("os.fdopen", mock_open()),
+            patch("os.replace"),
+            patch("json.loads", return_value={"token": "abc"}),
+            patch("json.dump", side_effect=OSError("boom")),
+            patch("os.remove") as mock_remove,
+        ):
+            service = AuthService()
+            with pytest.raises(OSError, match="boom"):
+                service._save_credentials(mock_creds)
+            mock_remove.assert_called_once_with("/tmp/token.abc.tmp")
 
     def test_refresh_credentials_expired_with_token(self):
         mock_creds = MagicMock()
@@ -107,7 +149,7 @@ class TestAuthService:
             service = AuthService()
             result = service.get_service()
             assert result == mock_build
-            mock_save.assert_called_once_with(mock_creds)
+            mock_save.assert_not_called()
 
     def test_get_service_refreshes_expired_creds(self):
         invalid_creds = MagicMock()

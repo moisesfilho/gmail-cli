@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import pickle  # nosec B403
+import tempfile
 import time
 import webbrowser
 
@@ -44,16 +45,17 @@ class AuthService:
 
     def get_service(self):
         creds = self._load_credentials()
-        if creds and not creds.valid and not self._refresh_credentials(creds):
-            raise AuthError(
-                "Authentication token expired and could not be refreshed. "
-                "Run 'gmail auth login' to re-authenticate."
-            )
         if not creds:
             raise AuthError(
                 "Authentication token not found. Run 'gmail auth login' to authenticate."
             )
-        self._save_credentials(creds)
+        if not creds.valid:
+            if not self._refresh_credentials(creds):
+                raise AuthError(
+                    "Authentication token expired and could not be refreshed. "
+                    "Run 'gmail auth login' to re-authenticate."
+                )
+            self._save_credentials(creds)
         return build("gmail", "v1", credentials=creds)
 
     def login(self):
@@ -72,8 +74,11 @@ class AuthService:
                     self._migrate_old_token(old, path)
                     break
         if os.path.exists(path):
-            with open(path) as f:
-                return Credentials.from_authorized_user_info(json.load(f))
+            try:
+                with open(path) as f:
+                    return Credentials.from_authorized_user_info(json.load(f))
+            except (json.JSONDecodeError, OSError, ValueError):
+                return None
         return None
 
     @staticmethod
@@ -91,8 +96,15 @@ class AuthService:
 
     def _save_credentials(self, creds):
         self._ensure_data_dir()
-        with open(self.TOKEN_FILE, "w") as f:
-            json.dump(json.loads(creds.to_json()), f)
+        fd, tmp_path = tempfile.mkstemp(dir=DATA_DIR, prefix="token.", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(json.loads(creds.to_json()), f)
+            os.replace(tmp_path, self.TOKEN_FILE)
+        except BaseException:
+            with contextlib.suppress(OSError):
+                os.remove(tmp_path)
+            raise
 
     def _refresh_credentials(self, creds):
         if not creds or not creds.refresh_token:
