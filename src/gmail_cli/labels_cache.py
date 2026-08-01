@@ -30,6 +30,10 @@ def save_labels(labels: list[dict]) -> None:
 
 
 def refresh_labels(client) -> list[dict]:
-    labels = [{"id": label.id, "name": label.name} for label in client.list_labels()]
+    labels = [
+        {"id": label.id, "name": label.name}
+        for label in client.list_labels()
+        if label.label_list_visibility == "labelShow"
+    ]
     save_labels(labels)
     return labels

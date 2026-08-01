@@ -146,7 +146,14 @@ class GmailClient:
     def list_labels(self):
         try:
             result = self._service.users().labels().list(userId="me").execute()
-            return [Label(id=lab["id"], name=lab["name"]) for lab in result.get("labels", [])]
+            return [
+                Label(
+                    id=lab["id"],
+                    name=lab["name"],
+                    label_list_visibility=lab.get("labelListVisibility", "labelShow"),
+                )
+                for lab in result.get("labels", [])
+            ]
         except HttpError as e:
             raise GmailError(f"Erro ao listar labels: {e}")
 

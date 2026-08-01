@@ -36,6 +36,7 @@ class Message:
 class Label:
     id: str
     name: str
+    label_list_visibility: str = "labelShow"
 
 
 @dataclass

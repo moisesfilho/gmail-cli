@@ -186,7 +186,10 @@ def _labels_section(labels: list[str] | None) -> str:
     if not labels:
         return ""
     names = ", ".join(labels)
-    return f"\n\nAVAILABLE LABELS (use these exact names as categories when possible): {names}\n"
+    return (
+        f"\n\nEXISTING LABELS (consider reusing these, but you MAY create new categories"
+        f" when none fits): {names}\n"
+    )
 
 
 def build_classify_system_prompt(language: str = "pt", labels: list[str] | None = None) -> str:

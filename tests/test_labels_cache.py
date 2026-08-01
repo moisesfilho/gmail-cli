@@ -60,3 +60,25 @@ class TestRefreshLabels:
         result = refresh_labels(mock_client)
         assert result == [{"id": "L1", "name": "Work"}]
         assert json.loads(labels_file.read_text()) == [{"id": "L1", "name": "Work"}]
+
+    def test_filters_hidden_labels(self, tmp_path, monkeypatch):
+        labels_file = tmp_path / "labels_cache.json"
+        monkeypatch.setattr("gmail_cli.labels_cache.LABELS_FILE", labels_file)
+        mock_client = type(
+            "C",
+            (),
+            {
+                "list_labels": lambda self: [
+                    Label("L1", "Visible", label_list_visibility="labelShow"),
+                    Label("L2", "Hidden", label_list_visibility="labelHide"),
+                    Label("L3", "ShowIfUnread", label_list_visibility="labelShowIfUnread"),
+                    Label("L4", "System", label_list_visibility="labelShow"),
+                ]
+            },
+        )()
+        result = refresh_labels(mock_client)
+        assert result == [
+            {"id": "L1", "name": "Visible"},
+            {"id": "L4", "name": "System"},
+        ]
+        assert json.loads(labels_file.read_text()) == result

@@ -70,21 +70,23 @@ class TestBuildSuggestionSystemPrompt:
 
     def test_with_labels_lists_available_labels(self):
         prompt = build_suggestion_system_prompt(labels=["Work", "Personal"])
-        assert "AVAILABLE LABELS" in prompt
+        assert "EXISTING LABELS" in prompt
         assert "Work, Personal" in prompt
+        assert "MAY create new categories" in prompt
 
     def test_without_labels_has_no_section(self):
-        assert "AVAILABLE LABELS" not in build_suggestion_system_prompt()
+        assert "EXISTING LABELS" not in build_suggestion_system_prompt()
 
 
 class TestBuildClassifySystemPromptLabels:
     def test_with_labels_lists_available_labels(self):
         prompt = build_classify_system_prompt(labels=["Work"])
-        assert "AVAILABLE LABELS" in prompt
+        assert "EXISTING LABELS" in prompt
         assert "Work" in prompt
+        assert "MAY create new categories" in prompt
 
     def test_without_labels_has_no_section(self):
-        assert "AVAILABLE LABELS" not in build_classify_system_prompt()
+        assert "EXISTING LABELS" not in build_classify_system_prompt()
 
 
 class TestProviderConfig:
