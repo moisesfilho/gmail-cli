@@ -1233,9 +1233,11 @@ class TestClassify:
         )
 
         assert result.exit_code == 0
-        assert "Applied 1 suggestion(s) as labels." in result.output
+        assert "Applied 1 suggestion(s) as labels and archived emails." in result.output
         mock_client.create_label.assert_called_once_with("Work")
-        mock_client.modify_message.assert_called_once_with("msg1", add_labels=["LABEL1"])
+        mock_client.modify_message.assert_called_once_with(
+            "msg1", add_labels=["LABEL1"], remove_labels=["INBOX"]
+        )
 
     def test_classify_apply_existing_label(self, runner, mock_client):
         mock_client.list_messages.return_value = [
@@ -1267,7 +1269,9 @@ class TestClassify:
 
         assert result.exit_code == 0
         mock_client.create_label.assert_not_called()
-        mock_client.modify_message.assert_called_once_with("msg1", add_labels=["EXIST"])
+        mock_client.modify_message.assert_called_once_with(
+            "msg1", add_labels=["EXIST"], remove_labels=["INBOX"]
+        )
 
     def test_classify_invalid_suggestions(self, runner, mock_client):
         mock_client.list_messages.return_value = [
@@ -1347,6 +1351,10 @@ class TestApplySuggestionLabels:
         mock_client.create_label.assert_any_call("Work")
         mock_client.create_label.assert_any_call("Personal")
         assert mock_client.modify_message.call_count == 3
+        args, kwargs = mock_client.modify_message.call_args
+        assert args[0] == "m3"
+        assert kwargs["add_labels"] == ["L1"]
+        assert kwargs["remove_labels"] == ["INBOX"]
 
     def test_uses_existing_labels(self):
         mock_client = MagicMock()
@@ -1356,7 +1364,9 @@ class TestApplySuggestionLabels:
         _cli_mod._apply_suggestion_labels(mock_client, suggestions)
 
         mock_client.create_label.assert_not_called()
-        mock_client.modify_message.assert_called_once_with("m1", add_labels=["EXIST"])
+        mock_client.modify_message.assert_called_once_with(
+            "m1", add_labels=["EXIST"], remove_labels=["INBOX"]
+        )
 
 
 class TestLogging:

@@ -173,7 +173,7 @@ gmail classify --id <message_id>
 gmail classify -q "is:unread" --apply
 ```
 
-The output lists `id | category | subject` for each email. With `--apply`, the suggested categories are created as labels (if they do not exist yet) and each email gets its own label applied automatically.
+The output lists `id | category | subject` for each email. With `--apply`, the suggested categories are created as labels (if they do not exist yet), each email gets its own label applied automatically, and is archived (removed from the Inbox).
 
 ### Exporting Emails for AI/RAG
 

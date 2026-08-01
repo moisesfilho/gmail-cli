@@ -142,7 +142,9 @@ def _apply_suggestion_labels(client, suggestions):
         label_id = existing[category]
         for suggestion in suggestions:
             if suggestion["category"] == category:
-                client.modify_message(suggestion["id"], add_labels=[label_id])
+                client.modify_message(
+                    suggestion["id"], add_labels=[label_id], remove_labels=["INBOX"]
+                )
 
 
 fmt = CliFormatter()
@@ -566,7 +568,7 @@ def classify(query, max_results, message_id, apply):
             suggestion["subject"] = subject_map.get(suggestion["id"], "")
         if apply:
             _apply_suggestion_labels(client, suggestions)
-            fmt.info(f"Applied {len(suggestions)} suggestion(s) as labels.")
+            fmt.info(f"Applied {len(suggestions)} suggestion(s) as labels and archived emails.")
         fmt.list_suggestions(suggestions)
     except (AuthError, GmailError) as e:
         fmt.error(str(e))
