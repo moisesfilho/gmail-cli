@@ -1,12 +1,18 @@
 import requests
 
-from .base import CLASSIFY_SYSTEM_PROMPT, COMMAND_SYSTEM_PROMPT, SYSTEM_PROMPT, ModelProvider
+from .base import COMMAND_SYSTEM_PROMPT, SYSTEM_PROMPT, ModelProvider, build_classify_system_prompt
 
 
 class OllamaProvider(ModelProvider):
-    def __init__(self, base_url: str = "http://localhost:11434", model: str = "llama3.2"):
+    def __init__(
+        self,
+        base_url: str = "http://localhost:11434",
+        model: str = "llama3.2",
+        response_language: str = "pt",
+    ):
         self.base_url = base_url.rstrip("/")
         self.model = model
+        self.response_language = response_language
 
     def generate_query(self, natural_language: str) -> str:
         resp = requests.post(
@@ -49,13 +55,15 @@ class OllamaProvider(ModelProvider):
             json={
                 "model": self.model,
                 "messages": [
-                    {"role": "system", "content": CLASSIFY_SYSTEM_PROMPT},
+                    {
+                        "role": "system",
+                        "content": build_classify_system_prompt(self.response_language),
+                    },
                     {
                         "role": "user",
                         "content": (
-                            emails_json
-                            + "\n\nGere APENAS o relatório de classificação "
-                            "conforme o formato especificado. Nada mais."
+                            emails_json + "\n\nGenerate ONLY the classification report "
+                            "following the specified format. Nothing else."
                         ),
                     },
                 ],
@@ -66,4 +74,3 @@ class OllamaProvider(ModelProvider):
         )
         resp.raise_for_status()
         return resp.json()["message"]["content"].strip()
-

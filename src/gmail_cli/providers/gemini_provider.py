@@ -1,12 +1,15 @@
 import requests
 
-from .base import CLASSIFY_SYSTEM_PROMPT, COMMAND_SYSTEM_PROMPT, SYSTEM_PROMPT, ModelProvider
+from .base import COMMAND_SYSTEM_PROMPT, SYSTEM_PROMPT, ModelProvider, build_classify_system_prompt
 
 
 class GeminiProvider(ModelProvider):
-    def __init__(self, api_key: str, model: str = "gemini-2.0-flash"):
+    def __init__(
+        self, api_key: str, model: str = "gemini-2.0-flash", response_language: str = "pt"
+    ):
         self.api_key = api_key
         self.model = model
+        self.response_language = response_language
 
     def generate_query(self, natural_language: str) -> str:
         resp = requests.post(
@@ -47,11 +50,11 @@ class GeminiProvider(ModelProvider):
                         "parts": [
                             {
                                 "text": (
-                                    CLASSIFY_SYSTEM_PROMPT
+                                    build_classify_system_prompt(self.response_language)
                                     + "\n\n"
                                     + emails_json
-                                    + "\n\nGere APENAS o relatório de classificação "
-                                    "conforme o formato especificado. Nada mais."
+                                    + "\n\nGenerate ONLY the classification report "
+                                    "following the specified format. Nothing else."
                                 )
                             }
                         ]
@@ -64,4 +67,3 @@ class GeminiProvider(ModelProvider):
         resp.raise_for_status()
         data = resp.json()
         return data["candidates"][0]["content"]["parts"][0]["text"].strip()
-

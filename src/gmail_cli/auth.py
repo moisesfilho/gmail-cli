@@ -2,7 +2,7 @@ import contextlib
 import json
 import logging
 import os
-import pickle
+import pickle  # nosec B403
 import time
 import webbrowser
 
@@ -46,13 +46,12 @@ class AuthService:
         creds = self._load_credentials()
         if creds and not creds.valid and not self._refresh_credentials(creds):
             raise AuthError(
-                "Token de autenticação expirado e não foi possível renovar. "
-                "Execute 'gmail auth login' para reautenticar."
+                "Authentication token expired and could not be refreshed. "
+                "Run 'gmail auth login' to re-authenticate."
             )
         if not creds:
             raise AuthError(
-                "Token de autenticação não encontrado. "
-                "Execute 'gmail auth login' para autenticar."
+                "Authentication token not found. Run 'gmail auth login' to authenticate."
             )
         self._save_credentials(creds)
         return build("gmail", "v1", credentials=creds)
@@ -82,7 +81,7 @@ class AuthService:
         _, ext = os.path.splitext(old_path)
         if ext == ".pickle":
             with open(old_path, "rb") as f:
-                creds = pickle.load(f)
+                creds = pickle.load(f)  # nosec B301
             with open(new_path, "w") as f:
                 json.dump(json.loads(creds.to_json()), f)
         else:
@@ -126,33 +125,33 @@ def _open_guide_and_wait():
     os.makedirs(DATA_DIR, exist_ok=True)
     creds_path = os.path.join(DATA_DIR, "credentials.json")
     click.echo(
-        "═══ Autenticação necessária ═══\n\n"
-        "Para usar este CLI, você precisa:\n\n"
-        "  1. Um projeto no Google Cloud\n"
-        "  2. A Gmail API ativada\n"
-        "  3. Credenciais OAuth 2.0 do tipo 'Aplicativo para desktop'\n\n"
-        "Seu navegador será aberto nas páginas necessárias.\n"
-        "Siga os passos e salve o arquivo em:\n"
+        "═══ Authentication required ═══\n\n"
+        "To use this CLI, you need:\n\n"
+        "  1. A project in Google Cloud\n"
+        "  2. The Gmail API enabled\n"
+        "  3. OAuth 2.0 credentials of type 'Desktop application'\n\n"
+        "Your browser will open the required pages.\n"
+        "Follow the steps and save the file at:\n"
         f"  {creds_path}\n"
     )
-    click.prompt("Pressione Enter para abrir o Google Cloud Console", default="", prompt_suffix="")
+    click.prompt("Press Enter to open the Google Cloud Console", default="", prompt_suffix="")
     webbrowser.open(GMAIL_API_URL)
     click.echo(
-        "Ative a Gmail API e clique em 'CRIAR CREDENCIAIS' >\n"
-        "   'ID do cliente OAuth' > 'Aplicativo para desktop'.\n"
-        "Depois baixe o JSON e salve no caminho acima.\n"
+        "Enable the Gmail API and click 'CREATE CREDENTIALS' >\n"
+        "   'OAuth client ID' > 'Desktop application'.\n"
+        "Then download the JSON and save it to the path above.\n"
     )
     wait_for_file(creds_path)
 
 
 def wait_for_file(path: str, timeout: int = 300):
-    click.echo(f"Aguardando {path}...", nl=False)
+    click.echo(f"Waiting for {path}...", nl=False)
     start = time.time()
     while not os.path.exists(path):
         if time.time() - start > timeout:
             raise CredentialsNotFoundError(
-                f"Arquivo {path} não encontrado após {timeout}s.\n"
-                "Execute 'gmail auth login' quando tiver o arquivo."
+                f"File {path} not found after {timeout}s.\n"
+                "Run 'gmail auth login' once you have the file."
             )
         time.sleep(2)
         click.echo(".", nl=False)

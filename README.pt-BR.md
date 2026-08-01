@@ -4,7 +4,7 @@
   <img src="https://img.shields.io/badge/vers%C3%A3o-v1.2.0--alpha-blue" alt="Versão">
   <img src="https://img.shields.io/badge/licen%C3%A7a-MIT-green" alt="Licença">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python">
-  <img src="https://img.shields.io/badge/testes-207%20passando-brightgreen" alt="Testes">
+  <img src="https://img.shields.io/badge/testes-215%20passando-brightgreen" alt="Testes">
   <img src="https://img.shields.io/badge/cobertura-100%25-brightgreen" alt="Cobertura">
 </p>
 
@@ -209,6 +209,9 @@ gmail config set --openai-model gpt-4 --ollama-model llama3.1 --opencode-go-mode
 
 # Definir retenção de logs em dias (cíclico, apaga os mais antigos)
 gmail config set --log-days 120
+
+# Definir o idioma dos textos de retorno gerados pela IA (ex.: relatório)
+gmail config set --response-language en
 ```
 
 A configuração é salva em `~/.gmail-cli/config.json`.
@@ -224,10 +227,13 @@ Variáveis de ambiente sobrescrevem o arquivo:
 | `GMAIL_CLI_GEMINI_MODEL` | Nome do modelo Gemini |
 | `OPENCODE_GO_MODEL` | Nome do modelo OpenCode Go |
 | `GMAIL_CLI_LOG_DAYS` | Retenção de logs em dias (padrão 120) |
+| `GMAIL_CLI_RESPONSE_LANGUAGE` | Idioma dos textos de retorno gerados pela IA, `pt` ou `en` (padrão `pt`) |
 
 ### Logs da Aplicação
 
-A CLI grava um log cíclico em `~/.gmail-cli/logs/gmail-cli.log`. Ele registra todos os comandos executados (`CMD:`), prompts em linguagem natural e comandos gerados (`PROMPT:` / `SUGGESTED:`), e diretórios de exportação (`Export gerado em:`). O log tem rotação diária e os arquivos antigos são apagados após `log_days` dias (padrão 120, configurável via `config set --log-days` ou `GMAIL_CLI_LOG_DAYS`).
+A CLI grava um log cíclico em `~/.gmail-cli/logs/gmail-cli.log`. Ele registra todos os comandos executados (`CMD:`), prompts em linguagem natural e comandos gerados (`PROMPT:` / `SUGGESTED:`), e diretórios de exportação (`Export generated at:`). O log tem rotação diária e os arquivos antigos são apagados após `log_days` dias (padrão 120, configurável via `config set --log-days` ou `GMAIL_CLI_LOG_DAYS`).
+
+A interface e o help do CLI estão em inglês. O input em linguagem natural (`gmail prompt` e `--query`) é aceito em português e inglês. Os textos de retorno gerados pela IA (ex.: relatório de classificação) seguem a config `response_language` (`pt` ou `en`).
 
 ## Estrutura do Projeto
 
@@ -268,7 +274,7 @@ gmail-cli/
 ## Testes
 
 ```bash
-pytest                    # 207 testes
+pytest                    # 215 testes
 pytest --cov=             # Cobertura (100%)
 ```
 

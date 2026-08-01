@@ -12,3 +12,4 @@ venv/
 .gmail_cli_credentials.json
 gmail_cli_token.json
 .coverage
+*,cover

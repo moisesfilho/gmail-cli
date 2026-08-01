@@ -51,6 +51,56 @@ class TestGmailClient:
         call_kwargs = gmail_client._service.users().messages().list.call_args[1]
         assert call_kwargs["labelIds"] == ["INBOX"]
 
+    def test_list_messages_paginates_without_max_results(self, gmail_client):
+        responses = [
+            {"messages": [{"id": "1"}], "nextPageToken": "token2"},
+            {"messages": [{"id": "2"}], "nextPageToken": "token3"},
+            {"messages": [{"id": "3"}]},
+        ]
+        gmail_client._service.users().messages().list().execute.side_effect = responses
+        gmail_client._service.users().messages().get().execute.side_effect = [
+            {"id": "1", "threadId": "t1", "labelIds": [], "payload": {"headers": []}},
+            {"id": "2", "threadId": "t2", "labelIds": [], "payload": {"headers": []}},
+            {"id": "3", "threadId": "t3", "labelIds": [], "payload": {"headers": []}},
+        ]
+
+        result = gmail_client.list_messages(max_results=None)
+
+        assert [m.id for m in result] == ["1", "2", "3"]
+        calls = [
+            c.kwargs
+            for c in gmail_client._service.users().messages().list.call_args_list
+            if "userId" in c.kwargs
+        ]
+        assert calls[0].get("pageToken") is None
+        assert calls[1].get("pageToken") == "token2"
+        assert calls[2].get("pageToken") == "token3"
+        assert all(c.get("maxResults") == 500 for c in calls)
+
+    def test_list_messages_paginates_with_max_results(self, gmail_client):
+        responses = [
+            {"messages": [{"id": "1"}], "nextPageToken": "token2"},
+            {"messages": [{"id": "2"}], "nextPageToken": "token3"},
+            {"messages": [{"id": "3"}]},
+        ]
+        gmail_client._service.users().messages().list().execute.side_effect = responses
+        gmail_client._service.users().messages().get().execute.side_effect = [
+            {"id": "1", "threadId": "t1", "labelIds": [], "payload": {"headers": []}},
+            {"id": "2", "threadId": "t2", "labelIds": [], "payload": {"headers": []}},
+        ]
+
+        result = gmail_client.list_messages(max_results=2)
+
+        assert [m.id for m in result] == ["1", "2"]
+        calls = [
+            c.kwargs
+            for c in gmail_client._service.users().messages().list.call_args_list
+            if "userId" in c.kwargs
+        ]
+        assert calls[0].get("maxResults") == 2
+        assert calls[1].get("maxResults") == 1
+        assert calls[1].get("pageToken") == "token2"
+
     def test_list_messages_http_error(self, gmail_client):
         gmail_client._service.users().messages().list().execute.side_effect = _make_http_error()
         with pytest.raises(GmailError, match="Erro ao listar mensagens"):
@@ -136,7 +186,7 @@ class TestGmailClient:
     def test_send_message_attachment_not_found(self, gmail_client):
         with (
             patch("os.path.exists", return_value=False),
-            pytest.raises(FileNotFoundError, match="Anexo não encontrado"),
+            pytest.raises(FileNotFoundError, match="Attachment not found"),
         ):
             gmail_client.send_message(
                 to="b@b.com", subject="X", body_text="X", attachments=["/fake/file.pdf"]

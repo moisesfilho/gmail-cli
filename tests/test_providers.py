@@ -15,7 +15,11 @@ from gmail_cli.providers import (
     load_config,
     save_config,
 )
-from gmail_cli.providers.base import CLASSIFY_SYSTEM_PROMPT, COMMAND_SYSTEM_PROMPT, SYSTEM_PROMPT
+from gmail_cli.providers.base import (
+    COMMAND_SYSTEM_PROMPT,
+    SYSTEM_PROMPT,
+    build_classify_system_prompt,
+)
 from gmail_cli.providers.config import DATA_DIR
 
 
@@ -26,6 +30,26 @@ class TestSystemPrompt:
         assert "has:attachment" in SYSTEM_PROMPT
         assert "older_than:" in SYSTEM_PROMPT
         assert "newer_than:" in SYSTEM_PROMPT
+
+    def test_supports_english_input(self):
+        assert "'unread' -> is:unread" in SYSTEM_PROMPT
+        assert "'today' -> newer_than:1d" in SYSTEM_PROMPT
+        assert "Examples (EN):" in SYSTEM_PROMPT
+        assert "Examples (EN):" in COMMAND_SYSTEM_PROMPT
+
+
+class TestBuildClassifySystemPrompt:
+    def test_default_uses_portuguese_format(self):
+        assert "Resumo Geral" in build_classify_system_prompt()
+        assert "General Summary" not in build_classify_system_prompt()
+
+    def test_english_language_uses_english_format(self):
+        assert "General Summary" in build_classify_system_prompt("en")
+        assert "Resumo Geral" not in build_classify_system_prompt("en")
+
+    def test_instructions_are_in_english(self):
+        assert "You are an email classifier." in build_classify_system_prompt()
+        assert "You are an email classifier." in build_classify_system_prompt("en")
 
 
 class TestProviderConfig:
@@ -38,6 +62,8 @@ class TestProviderConfig:
         assert cfg.openai_model == "gpt-4o-mini"
         assert cfg.gemini_model == "gemini-2.0-flash"
         assert cfg.opencode_go_model == "deepseek-v4-flash"
+        assert cfg.log_days == 120
+        assert cfg.response_language == "pt"
 
     @patch.dict(os.environ, {}, clear=True)
     def test_corrupted_config_file_falls_back(self, tmp_path):
@@ -61,6 +87,12 @@ class TestProviderConfig:
         cfg = load_config()
         assert cfg.provider == "openai"
         assert cfg.api_key == "sk-test"
+        assert cfg.response_language == "pt"
+
+    @patch.dict(os.environ, {"GMAIL_CLI_RESPONSE_LANGUAGE": "en"})
+    def test_load_response_language_from_env(self):
+        cfg = load_config()
+        assert cfg.response_language == "en"
 
     @patch.dict(os.environ, {}, clear=True)
     def test_load_from_file(self, tmp_path):
@@ -69,10 +101,13 @@ class TestProviderConfig:
         if config_file.exists():
             backup = config_file.read_text()
         try:
-            config_file.write_text(json.dumps({"provider": "gemini", "api_key": "fake-key"}))
+            config_file.write_text(
+                json.dumps({"provider": "gemini", "api_key": "fake-key", "response_language": "en"})
+            )
             cfg = load_config()
             assert cfg.provider == "gemini"
             assert cfg.api_key == "fake-key"
+            assert cfg.response_language == "en"
         finally:
             if backup is not None:
                 config_file.write_text(backup)
@@ -121,17 +156,37 @@ class TestCreateProvider:
         assert isinstance(provider, OllamaProvider)
         assert provider.base_url == "http://localhost:11434"
 
+    def test_opencode_go_without_key_raises(self):
+        cfg = ProviderConfig(provider="opencode_go")
+        with pytest.raises(ValueError, match="API_KEY"):
+            create_provider(cfg)
+
+    def test_opencode_go_with_key(self):
+        cfg = ProviderConfig(provider="opencode_go", api_key="open-code-key")
+        provider = create_provider(cfg)
+        assert isinstance(provider, OpenCodeGoProvider)
+        assert provider.api_key == "open-code-key"
+        assert provider.response_language == "pt"
+
     def test_openai_with_key(self):
         cfg = ProviderConfig(provider="openai", api_key="sk-test")
         provider = create_provider(cfg)
         assert isinstance(provider, OpenAIProvider)
         assert provider.api_key == "sk-test"
+        assert provider.response_language == "pt"
 
     def test_gemini_with_key(self):
         cfg = ProviderConfig(provider="gemini", api_key="gem-key")
         provider = create_provider(cfg)
         assert isinstance(provider, GeminiProvider)
         assert provider.api_key == "gem-key"
+        assert provider.response_language == "pt"
+
+    def test_ollama_passes_response_language(self):
+        cfg = ProviderConfig(provider="ollama", response_language="en")
+        provider = create_provider(cfg)
+        assert isinstance(provider, OllamaProvider)
+        assert provider.response_language == "en"
 
 
 class GenerativeResponse:
@@ -221,8 +276,12 @@ class TestOpenAIProvider:
             assert result == "Classification Report"
             mock_post.assert_called_once()
             call_kwargs = mock_post.call_args.kwargs
-            assert call_kwargs["json"]["messages"][0]["content"] == CLASSIFY_SYSTEM_PROMPT
-            assert call_kwargs["json"]["messages"][1]["content"] == "[]\n\nGere APENAS o relatório de classificação conforme o formato especificado. Nada mais."
+            assert call_kwargs["json"]["messages"][0]["content"] == build_classify_system_prompt()
+            assert (
+                call_kwargs["json"]["messages"][1]["content"]
+                == "[]\n\nGenerate ONLY the classification report "
+                "following the specified format. Nothing else."
+            )
 
 
 class TestGeminiProvider:
@@ -266,7 +325,12 @@ class TestGeminiProvider:
             result = provider.generate_classification_report("[]")
             assert result == "Classification Report"
             assert "gem-key" in mock_post.call_args.kwargs["params"]["key"]
-            expected_prompt = CLASSIFY_SYSTEM_PROMPT + "\n\n" + "[]\n\nGere APENAS o relatório de classificação conforme o formato especificado. Nada mais."
+            expected_prompt = (
+                build_classify_system_prompt()
+                + "\n\n"
+                + "[]\n\nGenerate ONLY the classification report "
+                "following the specified format. Nothing else."
+            )
             assert (
                 mock_post.call_args.kwargs["json"]["contents"][0]["parts"][0]["text"]
                 == expected_prompt
@@ -325,8 +389,12 @@ class TestOllamaProvider:
             assert result == "Classification Report"
             assert mock_post.call_args.args[0] == "http://localhost:11434/api/chat"
             call_kwargs = mock_post.call_args.kwargs
-            assert call_kwargs["json"]["messages"][0]["content"] == CLASSIFY_SYSTEM_PROMPT
-            assert call_kwargs["json"]["messages"][1]["content"] == "[]\n\nGere APENAS o relatório de classificação conforme o formato especificado. Nada mais."
+            assert call_kwargs["json"]["messages"][0]["content"] == build_classify_system_prompt()
+            assert (
+                call_kwargs["json"]["messages"][1]["content"]
+                == "[]\n\nGenerate ONLY the classification report "
+                "following the specified format. Nothing else."
+            )
 
 
 class TestOpenCodeGoProvider:
@@ -352,9 +420,7 @@ class TestOpenCodeGoProvider:
         provider = OpenCodeGoProvider(api_key="go-key", model="kimi-k3")
         with patch.object(requests, "post") as mock_post:
             mock_resp = MagicMock()
-            mock_resp.json.return_value = {
-                "choices": [{"message": {"content": "gmail search"}}]
-            }
+            mock_resp.json.return_value = {"choices": [{"message": {"content": "gmail search"}}]}
             mock_post.return_value = mock_resp
 
             result = provider.generate_command("search emails", "help text")
@@ -377,7 +443,9 @@ class TestOpenCodeGoProvider:
             result = provider.generate_classification_report("[]")
             assert result == "Classification Report"
             call_kwargs = mock_post.call_args.kwargs
-            assert call_kwargs["json"]["messages"][0]["content"] == CLASSIFY_SYSTEM_PROMPT
-            assert call_kwargs["json"]["messages"][1]["content"] == "[]\n\nGere APENAS o relatório de classificação conforme o formato especificado. Nada mais."
-
-
+            assert call_kwargs["json"]["messages"][0]["content"] == build_classify_system_prompt()
+            assert (
+                call_kwargs["json"]["messages"][1]["content"]
+                == "[]\n\nGenerate ONLY the classification report "
+                "following the specified format. Nothing else."
+            )

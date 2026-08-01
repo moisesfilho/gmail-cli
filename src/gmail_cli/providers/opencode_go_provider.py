@@ -1,14 +1,17 @@
 import requests
 
-from .base import CLASSIFY_SYSTEM_PROMPT, COMMAND_SYSTEM_PROMPT, SYSTEM_PROMPT, ModelProvider
+from .base import COMMAND_SYSTEM_PROMPT, SYSTEM_PROMPT, ModelProvider, build_classify_system_prompt
 
 BASE_URL = "https://opencode.ai/zen/go/v1"
 
 
 class OpenCodeGoProvider(ModelProvider):
-    def __init__(self, api_key: str, model: str = "deepseek-v4-flash"):
+    def __init__(
+        self, api_key: str, model: str = "deepseek-v4-flash", response_language: str = "pt"
+    ):
         self.api_key = api_key
         self.model = model
+        self.response_language = response_language
 
     def _post(self, system_prompt: str, user_content: str) -> str:
         resp = requests.post(
@@ -39,8 +42,7 @@ class OpenCodeGoProvider(ModelProvider):
 
     def generate_classification_report(self, emails_json: str) -> str:
         user_content = (
-            emails_json
-            + "\n\nGere APENAS o relatório de classificação "
-            "conforme o formato especificado. Nada mais."
+            emails_json + "\n\nGenerate ONLY the classification report "
+            "following the specified format. Nothing else."
         )
-        return self._post(CLASSIFY_SYSTEM_PROMPT, user_content)
+        return self._post(build_classify_system_prompt(self.response_language), user_content)

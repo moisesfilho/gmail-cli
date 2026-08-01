@@ -19,6 +19,7 @@ class ProviderConfig:
     gemini_model: str = "gemini-2.0-flash"
     opencode_go_model: str = "deepseek-v4-flash"
     log_days: int = 120
+    response_language: str = "pt"
 
 
 def _load_config_file() -> dict:
@@ -56,6 +57,9 @@ def load_config() -> ProviderConfig:
         or file_cfg.get("opencode_go_model")
         or "deepseek-v4-flash",
         log_days=int(os.environ.get("GMAIL_CLI_LOG_DAYS") or file_cfg.get("log_days") or 120),
+        response_language=os.environ.get("GMAIL_CLI_RESPONSE_LANGUAGE")
+        or file_cfg.get("response_language")
+        or "pt",
     )
 
 
@@ -69,5 +73,6 @@ def save_config(cfg: ProviderConfig) -> None:
         "gemini_model": cfg.gemini_model,
         "opencode_go_model": cfg.opencode_go_model,
         "log_days": cfg.log_days,
+        "response_language": cfg.response_language,
     }
     _save_config_file({k: v for k, v in data.items() if v})

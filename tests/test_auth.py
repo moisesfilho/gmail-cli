@@ -1,9 +1,15 @@
 from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
+import requests as req_lib
 
 from gmail_cli import AuthError, AuthService, CredentialsNotFoundError
-from gmail_cli.auth import _open_guide_and_wait, wait_for_file
+from gmail_cli.auth import (
+    _OLD_TOKEN_FILE,
+    _OLD_TOKEN_FILE_JSON,
+    _open_guide_and_wait,
+    wait_for_file,
+)
 
 
 class TestAuthService:
@@ -125,7 +131,7 @@ class TestAuthService:
     def test_get_service_creates_new_creds(self):
         with (
             patch.object(AuthService, "_load_credentials", return_value=None),
-            pytest.raises(AuthError, match="Token de autenticação não encontrado"),
+            pytest.raises(AuthError, match="Authentication token not found"),
         ):
             AuthService().get_service()
 
@@ -136,7 +142,7 @@ class TestAuthService:
         with (
             patch.object(AuthService, "_load_credentials", return_value=invalid_creds),
             patch.object(AuthService, "_refresh_credentials", return_value=None),
-            pytest.raises(AuthError, match="não foi possível renovar"),
+            pytest.raises(AuthError, match="could not be refreshed"),
         ):
             AuthService().get_service()
 
@@ -166,6 +172,83 @@ class TestAuthService:
         with patch.object(AuthService, "_load_credentials", return_value=None):
             service = AuthService()
             service.revoke()
+
+    def test_load_credentials_migrates_pickle_token(self):
+        mock_creds = MagicMock()
+        migrated = {"done": False}
+
+        def exists(path):
+            if path == _OLD_TOKEN_FILE:
+                return True
+            if path == AuthService.TOKEN_FILE:
+                return migrated["done"]
+            return False
+
+        with (
+            patch("os.path.exists", side_effect=exists),
+            patch("builtins.open", mock_open(read_data=b"pickle-data")),
+            patch("gmail_cli.auth.pickle.load", return_value=mock_creds) as mock_pickle_load,
+            patch("json.load", return_value={"token": "abc"}),
+            patch("json.loads", return_value={"token": "abc"}),
+            patch(
+                "google.oauth2.credentials.Credentials.from_authorized_user_info",
+                return_value=mock_creds,
+            ),
+            patch("json.dump", side_effect=lambda *a, **k: migrated.update(done=True)),
+            patch("os.remove"),
+        ):
+            service = AuthService()
+            result = service._load_credentials()
+            assert result == mock_creds
+            mock_pickle_load.assert_called_once()
+
+    def test_migrate_old_token_pickle_removes_old_file(self):
+        mock_creds = MagicMock()
+        mock_creds.to_json.return_value = '{"token": "abc"}'
+        with (
+            patch("builtins.open", mock_open()),
+            patch("gmail_cli.auth.pickle.load", return_value=mock_creds),
+            patch("json.loads", return_value={"token": "abc"}),
+            patch("json.dump") as mock_dump,
+            patch("os.remove") as mock_remove,
+        ):
+            AuthService._migrate_old_token("/old/token.pickle", "/new/token.json")
+            mock_dump.assert_called_once()
+            mock_remove.assert_called_once_with("/old/token.pickle")
+
+    def test_migrate_old_token_json_renames(self):
+        with (
+            patch("builtins.open", mock_open()),
+            patch("os.rename") as mock_rename,
+            patch("os.remove") as mock_remove,
+        ):
+            AuthService._migrate_old_token(_OLD_TOKEN_FILE_JSON, "/new/token.json")
+            mock_rename.assert_called_once_with(_OLD_TOKEN_FILE_JSON, "/new/token.json")
+            mock_remove.assert_called_once_with(_OLD_TOKEN_FILE_JSON)
+
+    def test_refresh_credentials_without_refresh_token(self):
+        mock_creds = MagicMock()
+        mock_creds.refresh_token = None
+        service = AuthService()
+        result = service._refresh_credentials(mock_creds)
+        assert result is None
+        mock_creds.refresh.assert_not_called()
+
+    def test_refresh_credentials_raises_request_exception(self):
+        mock_creds = MagicMock()
+        mock_creds.refresh_token = "token"
+        mock_creds.refresh.side_effect = req_lib.RequestException("boom")
+        service = AuthService()
+        result = service._refresh_credentials(mock_creds)
+        assert result is None
+
+    def test_refresh_credentials_raises_value_error(self):
+        mock_creds = MagicMock()
+        mock_creds.refresh_token = "token"
+        mock_creds.refresh.side_effect = ValueError("bad")
+        service = AuthService()
+        result = service._refresh_credentials(mock_creds)
+        assert result is None
 
 
 class TestWaitForFile:

@@ -4,7 +4,7 @@
   <img src="https://img.shields.io/badge/version-v1.2.0--alpha-blue" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python">
-  <img src="https://img.shields.io/badge/tests-207%20passing-brightgreen" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-215%20passing-brightgreen" alt="Tests">
   <img src="https://img.shields.io/badge/coverage-100%25-brightgreen" alt="Coverage">
 </p>
 
@@ -209,6 +209,9 @@ gmail config set --openai-model gpt-4 --ollama-model llama3.1 --opencode-go-mode
 
 # Set log retention in days (cyclic, deletes oldest)
 gmail config set --log-days 120
+
+# Set response language for AI-generated texts (e.g. classification report)
+gmail config set --response-language en
 ```
 
 Configuration is saved in `~/.gmail-cli/config.json`.
@@ -224,10 +227,13 @@ Environment variables override file config:
 | `GMAIL_CLI_GEMINI_MODEL` | Gemini model name |
 | `OPENCODE_GO_MODEL` | OpenCode Go model name |
 | `GMAIL_CLI_LOG_DAYS` | Log retention in days (default 120) |
+| `GMAIL_CLI_RESPONSE_LANGUAGE` | Language of AI-generated return texts, `pt` or `en` (default `pt`) |
 
 ### Application Logs
 
-The CLI writes a cyclic log to `~/.gmail-cli/logs/gmail-cli.log`. It records every executed command (`CMD:`), natural language prompts and generated commands (`PROMPT:` / `SUGGESTED:`), and export directories (`Export gerado em:`). The log rotates daily and old files are deleted after `log_days` days (default 120, configurable via `config set --log-days` or `GMAIL_CLI_LOG_DAYS`).
+The CLI writes a cyclic log to `~/.gmail-cli/logs/gmail-cli.log`. It records every executed command (`CMD:`), natural language prompts and generated commands (`PROMPT:` / `SUGGESTED:`), and export directories (`Export generated at:`). The log rotates daily and old files are deleted after `log_days` days (default 120, configurable via `config set --log-days` or `GMAIL_CLI_LOG_DAYS`).
+
+The CLI interface and help are in English. The natural language input (`gmail prompt` and `--query`) is accepted in both Portuguese and English. AI-generated return texts (e.g. the classification report) follow the `response_language` config (`pt` or `en`).
 
 ## Project Structure
 
@@ -268,7 +274,7 @@ gmail-cli/
 ## Tests
 
 ```bash
-pytest                    # 207 tests
+pytest                    # 215 tests
 pytest --cov=             # Coverage (100%)
 ```
 

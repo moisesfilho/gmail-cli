@@ -16,21 +16,17 @@ class CliFormatter:
 
     def show_message(self, msg):
         status = (
-            "📥 Caixa de entrada"
-            if msg.is_in_inbox
-            else "📦 Arquivado"
-            if not msg.is_in_trash
-            else "🗑 Lixeira"
+            "📥 Inbox" if msg.is_in_inbox else "📦 Archived" if not msg.is_in_trash else "🗑 Trash"
         )
         click.echo(f"Status:  {status}")
-        click.echo(f"De:      {msg.from_}")
-        click.echo(f"Para:    {msg.to}")
-        click.echo(f"Assunto: {msg.subject}")
-        click.echo(f"Data:    {msg.date}")
+        click.echo(f"From:    {msg.from_}")
+        click.echo(f"To:      {msg.to}")
+        click.echo(f"Subject: {msg.subject}")
+        click.echo(f"Date:    {msg.date}")
         if msg.custom_labels:
             click.echo(f"Labels:  {', '.join(msg.custom_labels)}")
         if msg.body:
-            click.echo(f"\n--- Corpo ---\n{msg.body}")
+            click.echo(f"\n--- Body ---\n{msg.body}")
 
     def list_label(self, label):
         click.echo(f"{label.id:30s}  {label.name}")
@@ -52,7 +48,7 @@ class CliFormatter:
         click.echo(message)
 
     def error(self, message):
-        click.echo(f"Erro: {message}", err=True)
+        click.echo(f"Error: {message}", err=True)
 
     def warn(self, message):
-        click.echo(f"Aviso: {message}")
+        click.echo(f"Warning: {message}")

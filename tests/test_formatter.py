@@ -38,7 +38,7 @@ class TestCliFormatter:
         fmt = CliFormatter()
         fmt.show_message(sample_message)
         captured = capsys.readouterr()
-        assert "📥 Caixa de entrada" in captured.out
+        assert "📥 Inbox" in captured.out
         assert sample_message.from_ in captured.out
         assert sample_message.subject in captured.out
         assert sample_message.body in captured.out
@@ -47,13 +47,13 @@ class TestCliFormatter:
         fmt = CliFormatter()
         fmt.show_message(sample_archived_message)
         captured = capsys.readouterr()
-        assert "📦 Arquivado" in captured.out
+        assert "📦 Archived" in captured.out
 
     def test_show_message_trash(self, capsys, sample_trash_message):
         fmt = CliFormatter()
         fmt.show_message(sample_trash_message)
         captured = capsys.readouterr()
-        assert "🗑 Lixeira" in captured.out
+        assert "🗑 Trash" in captured.out
 
     def test_show_message_without_body(self, capsys, sample_message):
         msg = sample_message
@@ -61,7 +61,7 @@ class TestCliFormatter:
         fmt = CliFormatter()
         fmt.show_message(msg)
         captured = capsys.readouterr()
-        assert "--- Corpo ---" not in captured.out
+        assert "--- Body ---" not in captured.out
 
     def test_list_messages(self, capsys, sample_message):
         fmt = CliFormatter()

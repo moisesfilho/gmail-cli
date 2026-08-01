@@ -42,6 +42,13 @@ class TestEntryPoint:
         assert result.returncode == 0
         assert "Usage:" in result.stdout
 
+    def test_help_contains_full_command_reference(self, runner):
+        result = runner.invoke(cli, ["--help"])
+        assert result.exit_code == 0
+        assert "Command: gmail config set" in result.output
+        assert "Command: gmail prompt" in result.output
+        assert "--response-language" in result.output
+
     def test_create_client(self):
         with patch.object(_cli_mod, "AuthService") as mock_auth:
             mock_service = MagicMock()
@@ -56,7 +63,7 @@ class TestAuthLogout:
         with patch.object(_cli_mod, "AuthService") as mock_svc:
             svc_instance = mock_svc.return_value
             result = runner.invoke(cli, ["auth", "logout"])
-            assert "removido" in result.output or "Token" in result.output
+            assert "Token removed" in result.output
             svc_instance.revoke.assert_called_once()
 
 
@@ -66,7 +73,7 @@ class TestAuthStatus:
             svc_instance = mock_svc.return_value
             svc_instance._load_credentials.return_value = MagicMock()
             result = runner.invoke(cli, ["auth", "status"])
-            assert "Autenticado" in result.output
+            assert "Authenticated" in result.output
 
     def test_status_credentials_found(self, runner):
         with patch.object(_cli_mod, "AuthService") as mock_svc:
@@ -75,7 +82,7 @@ class TestAuthStatus:
             svc_instance.CREDENTIALS_FILE = "/fake/path"
             with patch("os.path.exists", return_value=True):
                 result = runner.invoke(cli, ["auth", "status"])
-                assert "credenciais encontradas" in result.output.lower()
+                assert "credentials found" in result.output.lower()
 
     def test_status_no_credentials(self, runner):
         with patch.object(_cli_mod, "AuthService") as mock_svc:
@@ -84,7 +91,7 @@ class TestAuthStatus:
             svc_instance.CREDENTIALS_FILE = "/fake/path"
             with patch("os.path.exists", return_value=False):
                 result = runner.invoke(cli, ["auth", "status"])
-                assert "Nenhuma credencial" in result.output
+                assert "No credentials" in result.output
 
 
 class TestAuthLogin:
@@ -92,7 +99,7 @@ class TestAuthLogin:
         with patch.object(_cli_mod, "AuthService") as mock_svc:
             svc_instance = mock_svc.return_value
             result = runner.invoke(cli, ["auth", "login"])
-            assert "conclu" in result.output
+            assert "Authentication complete" in result.output
             svc_instance.login.assert_called_once()
 
 
@@ -101,7 +108,7 @@ class TestListMessages:
         mock_client.list_messages.return_value = []
         result = invoke(runner, ["list", "messages"], mock_client)
         assert result.exit_code == 0
-        assert "Nenhuma mensagem encontrada." in result.output
+        assert "No messages found." in result.output
 
     def test_with_results(self, runner, mock_client):
         mock_client.list_messages.return_value = [
@@ -146,7 +153,7 @@ class TestListLabels:
     def test_no_results(self, runner, mock_client):
         mock_client.list_labels.return_value = []
         result = invoke(runner, ["list", "labels"], mock_client)
-        assert "Nenhuma label encontrada." in result.output
+        assert "No labels found." in result.output
 
     def test_with_results(self, runner, mock_client):
         mock_client.list_labels.return_value = [Label(id="L1", name="Label1")]
@@ -165,7 +172,7 @@ class TestListDrafts:
     def test_no_results(self, runner, mock_client):
         mock_client.list_drafts.return_value = []
         result = invoke(runner, ["list", "drafts"], mock_client)
-        assert "Nenhum rascunho encontrado." in result.output
+        assert "No drafts found." in result.output
         assert result.exit_code == 0
 
     def test_with_results(self, runner, mock_client):
@@ -219,7 +226,7 @@ class TestSendMessage:
             mock_client,
         )
         assert result.exit_code == 0
-        assert "E-mail enviado!" in result.output
+        assert "Email sent!" in result.output
 
     def test_with_cc_bcc(self, runner, mock_client):
         mock_client.send_message.return_value = {"id": "s"}
@@ -281,7 +288,7 @@ class TestLabelCreate:
     def test_success(self, runner, mock_client):
         mock_client.create_label.return_value = {"id": "L1", "name": "Nova"}
         result = invoke(runner, ["label", "create", "Nova"], mock_client)
-        assert "Label criada: L1 - Nova" in result.output
+        assert "Label created: L1 - Nova" in result.output
 
     def test_error(self, runner, mock_client):
         mock_client.create_label.side_effect = GmailError("fail")
@@ -292,7 +299,7 @@ class TestLabelCreate:
 class TestLabelDelete:
     def test_success(self, runner, mock_client):
         result = invoke(runner, ["label", "delete", "L1"], mock_client)
-        assert "Label L1 deletada." in result.output
+        assert "Label L1 deleted." in result.output
         mock_client.delete_label.assert_called_once_with("L1")
 
     def test_error(self, runner, mock_client):
@@ -304,7 +311,7 @@ class TestLabelDelete:
 class TestMarkRead:
     def test_success(self, runner, mock_client):
         result = invoke(runner, ["mark", "read", "msg1"], mock_client)
-        assert "Mensagem msg1 marcada como lida." in result.output
+        assert "Message msg1 marked as read." in result.output
         mock_client.modify_message.assert_called_once_with("msg1", remove_labels=["UNREAD"])
 
     def test_error(self, runner, mock_client):
@@ -316,7 +323,7 @@ class TestMarkRead:
 class TestMarkUnread:
     def test_success(self, runner, mock_client):
         result = invoke(runner, ["mark", "unread", "msg1"], mock_client)
-        assert "Mensagem msg1 marcada como não lida." in result.output
+        assert "Message msg1 marked as unread." in result.output
         mock_client.modify_message.assert_called_once_with("msg1", add_labels=["UNREAD"])
 
     def test_error(self, runner, mock_client):
@@ -329,13 +336,13 @@ class TestDelete:
     def test_trash(self, runner, mock_client):
         result = invoke(runner, ["delete", "msg1"], mock_client, input="y\n")
         assert result.exit_code == 0
-        assert "movida para a lixeira" in result.output
+        assert "moved to trash" in result.output
         mock_client.trash_message.assert_called_once_with("msg1")
 
     def test_permanent(self, runner, mock_client):
         result = invoke(runner, ["delete", "msg1", "--permanent"], mock_client, input="y\n")
         assert result.exit_code == 0
-        assert "deletada permanentemente" in result.output
+        assert "deleted permanently" in result.output
         mock_client.delete_message.assert_called_once_with("msg1")
 
     def test_error(self, runner, mock_client):
@@ -353,7 +360,7 @@ class TestDeleteAll:
         mock_client.list_messages.return_value = []
         result = invoke(runner, ["delete-all", "-q", "from:spam"], mock_client, input="y\n")
         assert result.exit_code == 0
-        assert "Nenhum e-mail encontrado." in result.output
+        assert "No emails found." in result.output
 
     def test_trash(self, runner, mock_client):
         mock_client.list_messages.return_value = [
@@ -379,7 +386,7 @@ class TestDeleteAll:
             ),
         ]
         result = invoke(runner, ["delete-all", "-q", "from:spam"], mock_client, input="y\n")
-        assert "Deletando 2 e-mail(s)" in result.output
+        assert "Deleting 2 email(s)" in result.output
         assert mock_client.trash_message.call_count == 2
         mock_client.delete_message.assert_not_called()
 
@@ -399,7 +406,7 @@ class TestDeleteAll:
         result = invoke(
             runner, ["delete-all", "--permanent", "-q", "from:spam"], mock_client, input="y\n"
         )
-        assert "Deletando 1 e-mail(s)" in result.output
+        assert "Deleting 1 email(s)" in result.output
         mock_client.delete_message.assert_called_once_with("m1")
         mock_client.trash_message.assert_not_called()
 
@@ -412,7 +419,7 @@ class TestDeleteAll:
 class TestRestore:
     def test_success(self, runner, mock_client):
         result = invoke(runner, ["restore", "msg1"], mock_client)
-        assert "restaurada da lixeira" in result.output
+        assert "restored from trash" in result.output
         mock_client.untrash_message.assert_called_once_with("msg1")
 
     def test_error(self, runner, mock_client):
@@ -425,7 +432,7 @@ class TestRestoreAll:
     def test_no_results(self, runner, mock_client):
         mock_client.list_messages.return_value = []
         result = invoke(runner, ["restore-all", "-q", "in:trash"], mock_client, input="y\n")
-        assert "Nenhum e-mail encontrado na lixeira." in result.output
+        assert "No emails found in trash." in result.output
 
     def test_success(self, runner, mock_client):
         mock_client.list_messages.return_value = [
@@ -441,7 +448,7 @@ class TestRestoreAll:
             ),
         ]
         result = invoke(runner, ["restore-all", "-q", "in:trash"], mock_client, input="y\n")
-        assert "Restaurando 1 e-mail(s)" in result.output
+        assert "Restoring 1 email(s)" in result.output
         mock_client.untrash_message.assert_called_once_with("m1")
 
     def test_error(self, runner, mock_client):
@@ -458,7 +465,7 @@ class TestDraftCreate:
             ["draft", "create", "--to", "b@b.com", "--subject", "Rasc", "--body", "Corpo"],
             mock_client,
         )
-        assert "Rascunho criado!" in result.output
+        assert "Draft created!" in result.output
         mock_client.create_draft.assert_called_once_with(
             "b@b.com", "Rasc", "Corpo", cc=None, bcc=None
         )
@@ -501,7 +508,7 @@ class TestDraftSend:
     def test_success(self, runner, mock_client):
         mock_client.send_draft.return_value = {"id": "d1"}
         result = invoke(runner, ["draft", "send", "d1"], mock_client)
-        assert "Rascunho enviado!" in result.output
+        assert "Draft sent!" in result.output
         mock_client.send_draft.assert_called_once_with("d1")
 
     def test_error(self, runner, mock_client):
@@ -513,7 +520,7 @@ class TestDraftSend:
 class TestDraftDelete:
     def test_success(self, runner, mock_client):
         result = invoke(runner, ["draft", "delete", "d1"], mock_client)
-        assert "Rascunho d1 deletado." in result.output
+        assert "Draft d1 deleted." in result.output
         mock_client.delete_draft.assert_called_once_with("d1")
 
     def test_error(self, runner, mock_client):
@@ -526,13 +533,13 @@ class TestAttachments:
     def test_success(self, runner, mock_client):
         mock_client.download_attachments.return_value = ["/tmp/out/doc.pdf"]
         result = invoke(runner, ["attachments", "msg1", "-o", "/tmp/out"], mock_client)
-        assert "Anexo salvo: /tmp/out/doc.pdf" in result.output
+        assert "Attachment saved: /tmp/out/doc.pdf" in result.output
         mock_client.download_attachments.assert_called_once_with("msg1", output_dir="/tmp/out")
 
     def test_no_files(self, runner, mock_client):
         mock_client.download_attachments.return_value = []
         result = invoke(runner, ["attachments", "msg1"], mock_client)
-        assert "Nenhum anexo encontrado." in result.output
+        assert "No attachments found." in result.output
 
     def test_error(self, runner, mock_client):
         mock_client.download_attachments.side_effect = GmailError("fail")
@@ -544,7 +551,7 @@ class TestSearch:
     def test_no_results(self, runner, mock_client):
         mock_client.list_messages.return_value = []
         result = invoke(runner, ["search", "-q", "from:a"], mock_client)
-        assert "Nenhum e-mail encontrado." in result.output
+        assert "No emails found." in result.output
 
     def test_with_results(self, runner, mock_client):
         mock_client.list_messages.return_value = [
@@ -585,7 +592,7 @@ class TestPrompt:
             with patch.object(_cli_mod, "create_provider", return_value=mock_provider):
                 result = runner.invoke(cli, ["prompt", "emails", "from", "john"], input="n\n")
                 assert "gmail search --query 'from:john'" in result.output
-                assert "Deseja executar o comando sugerido?" in result.output
+                assert "Do you want to run the suggested command?" in result.output
                 mock_provider.generate_command.assert_called_once()
                 args, _ = mock_provider.generate_command.call_args
                 assert args[0] == "emails from john"
@@ -602,7 +609,7 @@ class TestPrompt:
         ):
             mock_load.return_value = ProviderConfig(provider="ollama")
             result = runner.invoke(cli, ["prompt", "unread", "emails"], input="n\n")
-            assert "Deseja executar o comando sugerido?" in result.output
+            assert "Do you want to run the suggested command?" in result.output
             mock_client.list_messages.assert_not_called()
 
     def test_prompt_accepts_execution_by_confirming(self, runner, mock_client):
@@ -620,7 +627,7 @@ class TestPrompt:
                 )
             ]
             result = runner.invoke(cli, ["prompt", "unread", "emails"], input="y\n")
-            assert "Deseja executar o comando sugerido?" in result.output
+            assert "Do you want to run the suggested command?" in result.output
             assert "Unread" in result.output
             mock_client.list_messages.assert_called_once_with(query="is:unread", max_results=20)
 
@@ -639,7 +646,7 @@ class TestPrompt:
                 )
             ]
             result = runner.invoke(cli, ["prompt", "unread", "emails", "--yes"])
-            assert "Deseja executar o comando sugerido?" not in result.output
+            assert "Do you want to run the suggested command?" not in result.output
             assert "Unread" in result.output
             mock_client.list_messages.assert_called_once_with(query="is:unread", max_results=20)
 
@@ -652,7 +659,7 @@ class TestPrompt:
         ):
             mock_load.return_value = ProviderConfig(provider="ollama")
             result = runner.invoke(cli, ["prompt", "something"])
-            assert "Não foi possível" in result.output
+            assert "Could not generate a command" in result.output
 
     def test_click_exception_handling(self, runner, mock_client):
         mock_provider = MagicMock()
@@ -671,7 +678,7 @@ class TestPrompt:
         ):
             mock_load.return_value = ProviderConfig(provider="ollama")
             result = runner.invoke(cli, ["prompt", "test", "--yes"])
-            assert "Erro: No such command 'invalid-command-name'" in result.output
+            assert "Error: No such command 'invalid-command-name'" in result.output
 
     def test_prompt_handles_abort(self, runner):
         mock_provider = MagicMock()
@@ -690,7 +697,7 @@ class TestPrompt:
         ):
             mock_load.return_value = ProviderConfig(provider="ollama")
             result = runner.invoke(cli, ["prompt", "test", "--yes"])
-            assert "Operação abortada" in result.output
+            assert "Operation aborted" in result.output
 
     def test_prompt_handles_system_exit_non_zero(self, runner):
         mock_provider = MagicMock()
@@ -709,7 +716,7 @@ class TestPrompt:
         ):
             mock_load.return_value = ProviderConfig(provider="ollama")
             result = runner.invoke(cli, ["prompt", "test", "--yes"])
-            assert "O comando saiu com código 1" in result.output
+            assert "The command exited with code 1" in result.output
 
     def test_prompt_handles_system_exit_zero(self, runner):
         mock_provider = MagicMock()
@@ -747,7 +754,7 @@ class TestPrompt:
         ):
             mock_load.return_value = ProviderConfig(provider="ollama")
             result = runner.invoke(cli, ["prompt", "test", "--yes"])
-            assert "Erro inesperado: unexpected error" in result.output
+            assert "Unexpected error: unexpected error" in result.output
 
     def test_prompt_strips_gmail_without_space(self, runner):
         mock_provider = MagicMock()
@@ -796,6 +803,18 @@ class TestConfig:
             assert "gemini" in result.output
             assert "secret-gemini-key-long" not in result.output
 
+    def test_show_opencode_go(self, runner):
+        with patch.object(_cli_mod, "load_config") as mock_load:
+            mock_load.return_value = ProviderConfig(provider="opencode_go")
+            result = runner.invoke(cli, ["config", "show"])
+            assert "deepseek-v4-flash" in result.output
+
+    def test_show_response_language(self, runner):
+        with patch.object(_cli_mod, "load_config") as mock_load:
+            mock_load.return_value = ProviderConfig(response_language="en")
+            result = runner.invoke(cli, ["config", "show"])
+            assert "Response language: en" in result.output
+
     def test_set_saves_config(self, runner):
         with (
             patch.object(_cli_mod, "save_config") as mock_save,
@@ -805,10 +824,20 @@ class TestConfig:
             result = runner.invoke(
                 cli, ["config", "set", "--provider", "openai", "--api-key", "sk-test"]
             )
-            assert "salva" in result.output
+            assert "saved" in result.output
             saved = mock_save.call_args[0][0]
             assert saved.provider == "openai"
             assert saved.api_key == "sk-test"
+
+    def test_set_response_language(self, runner):
+        with (
+            patch.object(_cli_mod, "save_config") as mock_save,
+            patch.object(_cli_mod, "load_config") as mock_load,
+        ):
+            mock_load.return_value = ProviderConfig()
+            runner.invoke(cli, ["config", "set", "--response-language", "en"])
+            saved = mock_save.call_args[0][0]
+            assert saved.response_language == "en"
 
     def test_set_ollama_url(self, runner):
         with (
@@ -819,6 +848,16 @@ class TestConfig:
             runner.invoke(cli, ["config", "set", "--ollama-url", "http://ollama.local:8080"])
             saved = mock_save.call_args[0][0]
             assert saved.ollama_url == "http://ollama.local:8080"
+
+    def test_set_log_days(self, runner):
+        with (
+            patch.object(_cli_mod, "save_config") as mock_save,
+            patch.object(_cli_mod, "load_config") as mock_load,
+        ):
+            mock_load.return_value = ProviderConfig()
+            runner.invoke(cli, ["config", "set", "--log-days", "30"])
+            saved = mock_save.call_args[0][0]
+            assert saved.log_days == 30
 
 
 class TestExport:
@@ -839,7 +878,7 @@ class TestExport:
             runner.isolated_filesystem(),
         ):
             result = runner.invoke(cli, ["show", "msg123", "--export", "output.json"])
-            assert "exportados com sucesso" in result.output
+            assert "exported successfully" in result.output
             assert os.path.exists("output.json")
             with open("output.json", encoding="utf-8") as f:
                 data = json.load(f)
@@ -863,7 +902,7 @@ class TestExport:
             runner.isolated_filesystem(),
         ):
             result = runner.invoke(cli, ["show", "msg123", "--export", "output.md"])
-            assert "exportados com sucesso" in result.output
+            assert "exported successfully" in result.output
             assert os.path.exists("output.md")
             with open("output.md", encoding="utf-8") as f:
                 content = f.read()
@@ -906,7 +945,7 @@ class TestExport:
             runner.isolated_filesystem(),
         ):
             result = runner.invoke(cli, ["search", "-q", "test", "--export", "output.jsonl"])
-            assert "exportados com sucesso" in result.output
+            assert "exported successfully" in result.output
             assert os.path.exists("output.jsonl")
             with open("output.jsonl", encoding="utf-8") as f:
                 lines = f.readlines()
@@ -945,7 +984,7 @@ class TestExport:
             runner.isolated_filesystem(),
         ):
             result = runner.invoke(cli, ["list", "messages", "--export", "output.txt"])
-            assert "exportados com sucesso" in result.output
+            assert "exported successfully" in result.output
             assert os.path.exists("output.txt.json")
             with open("output.txt.json", encoding="utf-8") as f:
                 data = json.load(f)
@@ -988,7 +1027,7 @@ class TestExport:
             runner.isolated_filesystem(),
         ):
             result = runner.invoke(cli, ["search", "-q", "test", "--export", "output.md"])
-            assert "exportados com sucesso" in result.output
+            assert "exported successfully" in result.output
             assert os.path.exists("output.md")
             with open("output.md", encoding="utf-8") as f:
                 content = f.read()
@@ -1129,6 +1168,5 @@ class TestLogging:
             result = runner.invoke(cli, ["show", "msg123", "--export", "output.json"])
         assert result.exit_code == 0
         log = self._read_log(tmp_path)
-        assert "Export gerado em:" in log
+        assert "Export generated at:" in log
         assert "output.json" in log
-

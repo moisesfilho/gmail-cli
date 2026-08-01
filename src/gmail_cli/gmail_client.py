@@ -132,7 +132,7 @@ class GmailClient:
 
     def _attach_file(self, mime_msg, filepath):
         if not os.path.exists(filepath):
-            raise FileNotFoundError(f"Anexo não encontrado: {filepath}")
+            raise FileNotFoundError(f"Attachment not found: {filepath}")
         with open(filepath, "rb") as f:
             part = MIMEBase("application", "octet-stream")
             part.set_payload(f.read())
