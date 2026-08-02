@@ -187,8 +187,11 @@ def _labels_section(labels: list[str] | None) -> str:
         return ""
     names = ", ".join(labels)
     return (
-        f"\n\nEXISTING LABELS (consider reusing these, but you MAY create new categories"
-        f" when none fits): {names}\n"
+        f"\n\nEXISTING LABELS (reference only): {names}\n"
+        f"CREATING NEW CATEGORIES IS PREFERRED. These labels exist solely as "
+        f"a reference so you can reuse them when they fit exactly, but do not "
+        f"limit yourself to them. If an email does not match an existing label "
+        f"naturally, create a NEW descriptive category.\n"
     )
 
 
@@ -206,21 +209,29 @@ SUGGESTION_INSTRUCTIONS = (
     "- Do not use markdown, code fences or extra text\n"
     '- Each item must be an object with exactly "id" and "category" keys\n'
     "- Use short, concise category names\n"
-    "- Assign each email to a single category\n\n"
+    "- Assign each email to a single category\n"
+    "- PREFER CREATING NEW CATEGORIES: if the existing labels do not "
+    "clearly describe the email content, create a new, more specific "
+    "category instead of forcing an existing label\n"
+    "- Reuse an existing label ONLY when it is an exact, natural fit "
+    "for the email\n"
+    "- Categories should be descriptive nouns in the response language "
+    "(e.g. 'Notas Fiscais', 'Financeiro', 'Reuniões'), not generic terms "
+    "like 'Outros' or 'Misc'\n\n"
 )
 
 SUGGESTION_FORMAT_PT = (
     'EXACT FORMAT (JSON array): [{"id": "<email id>", "category": "<categoria>"}, ...]\n\n'
     "EXAMPLE:\n"
     '[{"id": "1a2b3c", "category": "Trabalho"}, '
-    '{"id": "4d5e6f", "category": "Promoções"}]'
+    '{"id": "4d5e6f", "category": "Notas Fiscais"}]'
 )
 
 SUGGESTION_FORMAT_EN = (
     'EXACT FORMAT (JSON array): [{"id": "<email id>", "category": "<category>"}, ...]\n\n'
     "EXAMPLE:\n"
     '[{"id": "1a2b3c", "category": "Work"}, '
-    '{"id": "4d5e6f", "category": "Promotions"}]'
+    '{"id": "4d5e6f", "category": "Invoices"}]'
 )
 
 

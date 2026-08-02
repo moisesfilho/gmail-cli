@@ -72,10 +72,21 @@ class TestBuildSuggestionSystemPrompt:
         prompt = build_suggestion_system_prompt(labels=["Work", "Personal"])
         assert "EXISTING LABELS" in prompt
         assert "Work, Personal" in prompt
-        assert "MAY create new categories" in prompt
+        assert "CREATING NEW CATEGORIES IS PREFERRED" in prompt
 
     def test_without_labels_has_no_section(self):
         assert "EXISTING LABELS" not in build_suggestion_system_prompt()
+
+    def test_instructions_encourage_new_categories(self):
+        prompt = build_suggestion_system_prompt(labels=["Work"])
+        assert "PREFER CREATING NEW CATEGORIES" in prompt
+        assert "create a NEW descriptive category" in prompt
+        assert "Reuse an existing label ONLY" in prompt
+
+    def test_forbids_generic_categories(self):
+        prompt = build_suggestion_system_prompt(labels=["Work"])
+        assert "Outros" in prompt
+        assert "Misc" in prompt
 
 
 class TestBuildClassifySystemPromptLabels:
@@ -83,7 +94,7 @@ class TestBuildClassifySystemPromptLabels:
         prompt = build_classify_system_prompt(labels=["Work"])
         assert "EXISTING LABELS" in prompt
         assert "Work" in prompt
-        assert "MAY create new categories" in prompt
+        assert "CREATING NEW CATEGORIES IS PREFERRED" in prompt
 
     def test_without_labels_has_no_section(self):
         assert "EXISTING LABELS" not in build_classify_system_prompt()
