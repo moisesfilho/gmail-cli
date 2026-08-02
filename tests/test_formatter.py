@@ -73,13 +73,18 @@ class TestCliFormatter:
     def test_list_suggestions(self, capsys):
         fmt = CliFormatter()
         suggestions = [
-            {"id": "msg123456", "category": "Work", "subject": "Hello"},
-            {"id": "msg7890", "category": "Personal", "subject": "Hi"},
+            {"id": "msg123456", "category": "Work", "subject": "Hello", "from": "a@b.com"},
+            {"id": "msg7890", "category": "Personal", "subject": "Hi", "from": "c@d.com"},
         ]
         fmt.list_suggestions(suggestions)
         captured = capsys.readouterr()
-        assert "msg1234" in captured.out
+        assert "CATEGORY" in captured.out
+        assert "FROM" in captured.out
+        assert "SUBJECT" in captured.out
         assert "Work" in captured.out
+        assert "a@b.com" in captured.out
         assert "Hello" in captured.out
         assert "Personal" in captured.out
         assert "Hi" in captured.out
+        assert "msg123456" not in captured.out
+        assert "msg7890" not in captured.out

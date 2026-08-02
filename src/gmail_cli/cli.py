@@ -584,13 +584,15 @@ def classify(query, max_results, message_id, apply):
         except (json.JSONDecodeError, ValueError) as e:
             fmt.error(f"Could not parse model suggestions: {e}")
             return
-        subject_map = {m.id: m.subject for m in full_msgs}
+        info_map = {m.id: m for m in full_msgs}
         for suggestion in suggestions:
-            suggestion["subject"] = subject_map.get(suggestion["id"], "")
-        if apply:
+            msg = info_map.get(suggestion["id"])
+            suggestion["subject"] = msg.subject if msg else ""
+            suggestion["from"] = msg.from_ if msg else ""
+        fmt.list_suggestions(suggestions)
+        if apply and click.confirm("Apply these labels and archive the emails?"):
             _apply_suggestion_labels(client, suggestions)
             fmt.info(f"Applied {len(suggestions)} suggestion(s) as labels and archived emails.")
-        fmt.list_suggestions(suggestions)
     except (AuthError, GmailError) as e:
         fmt.error(str(e))
 

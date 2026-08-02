@@ -1153,9 +1153,8 @@ class TestExport:
 
 
 class TestClassify:
-    def _run_classify(self, runner, mock_client, mock_provider, args, raw=None):
-        if raw is None:
-            raw = '[{"id": "msg1", "category": "Work"}]'
+    def _run_classify(self, runner, mock_client, mock_provider, args, **kwargs):
+        raw = kwargs.get("raw") or '[{"id": "msg1", "category": "Work"}]'
         mock_provider.generate_classification_suggestions.return_value = raw
         with (
             patch.object(_cli_mod, "_create_client", return_value=mock_client),
@@ -1164,7 +1163,7 @@ class TestClassify:
             runner.isolated_filesystem(),
         ):
             mock_load.return_value = ProviderConfig(provider="ollama")
-            return runner.invoke(cli, args)
+            return runner.invoke(cli, args, input=kwargs.get("input"))
 
     def test_classify_with_query(self, runner, mock_client):
         mock_client.list_messages.return_value = [
@@ -1291,15 +1290,58 @@ class TestClassify:
         mock_provider = MagicMock()
 
         result = self._run_classify(
-            runner, mock_client, mock_provider, ["classify", "-q", "is:unread", "--apply"]
+            runner,
+            mock_client,
+            mock_provider,
+            ["classify", "-q", "is:unread", "--apply"],
+            input="y",
         )
 
         assert result.exit_code == 0
+        assert "CATEGORY" in result.output
+        assert "a@b.com" in result.output
+        assert "msg1" not in result.output
         assert "Applied 1 suggestion(s) as labels and archived emails." in result.output
         mock_client.create_label.assert_called_once_with("Work")
         mock_client.modify_message.assert_called_once_with(
             "msg1", add_labels=["LABEL1"], remove_labels=["INBOX"]
         )
+
+    def test_classify_apply_cancelled(self, runner, mock_client):
+        mock_client.list_messages.return_value = [
+            Message(
+                id="msg1",
+                thread_id="t1",
+                from_="a@b.com",
+                subject="S1",
+                date="D1",
+                label_ids=["L1"],
+            )
+        ]
+        mock_client.get_message.return_value = Message(
+            id="msg1",
+            thread_id="t1",
+            from_="a@b.com",
+            subject="S1",
+            date="D1",
+            label_ids=["L1"],
+            to="recip",
+            body="Body1",
+        )
+        mock_provider = MagicMock()
+
+        result = self._run_classify(
+            runner,
+            mock_client,
+            mock_provider,
+            ["classify", "-q", "is:unread", "--apply"],
+            input="n",
+        )
+
+        assert result.exit_code == 0
+        assert "Applied" not in result.output
+        mock_client.create_label.assert_not_called()
+        mock_client.modify_message.assert_not_called()
 
     def test_classify_apply_existing_label(self, runner, mock_client):
         mock_client.list_messages.return_value = [
@@ -1326,7 +1368,11 @@ class TestClassify:
         mock_provider = MagicMock()
 
         result = self._run_classify(
-            runner, mock_client, mock_provider, ["classify", "-q", "is:unread", "--apply"]
+            runner,
+            mock_client,
+            mock_provider,
+            ["classify", "-q", "is:unread", "--apply"],
+            input="y",
         )
 
         assert result.exit_code == 0

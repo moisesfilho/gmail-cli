@@ -45,9 +45,12 @@ class CliFormatter:
             self.list_draft(d)
 
     def list_suggestions(self, suggestions):
+        click.echo(f"{'CATEGORY':15s}  {'FROM':40s}  SUBJECT")
+        click.echo("-" * 75)
         for suggestion in suggestions:
             click.echo(
-                f"{suggestion['id'][:8]}  {suggestion['category']:15s}  "
+                f"{suggestion['category'][:15]:15s}  "
+                f"{suggestion.get('from', '')[:40]:40s}  "
                 f"{suggestion.get('subject', '')}"
             )
 
