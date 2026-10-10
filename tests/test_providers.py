@@ -550,6 +550,8 @@ class TestOpenCodeGoProvider:
             assert call_kwargs["json"]["messages"][0]["content"] == SYSTEM_PROMPT
             assert call_kwargs["json"]["messages"][1]["content"] == "emails from John"
             assert call_kwargs["headers"]["Authorization"] == "Bearer go-key"
+            assert call_kwargs["headers"]["User-Agent"] == "gmail-cli/1.3.0-alpha"
+            assert call_kwargs["headers"]["x-opencode-session"]
 
     def test_generate_command(self):
         provider = OpenCodeGoProvider(api_key="go-key", model="kimi-k3")

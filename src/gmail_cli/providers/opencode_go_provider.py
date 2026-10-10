@@ -1,3 +1,5 @@
+import uuid
+
 import requests
 
 from .base import (
@@ -30,6 +32,8 @@ class OpenCodeGoProvider(ModelProvider):
             headers={
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json",
+                "User-Agent": "gmail-cli/1.3.0-alpha",
+                "x-opencode-session": str(uuid.uuid4()),
             },
             json={
                 "model": self.model,
