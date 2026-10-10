@@ -59,6 +59,170 @@ class TestEntryPoint:
             assert client._service is mock_service
 
 
+class TestHarnessInterface:
+    def invoke_json(self, runner, request, mock_client):
+        with patch.object(_cli_mod, "_create_client", return_value=mock_client):
+            return runner.invoke(cli, ["harness"], input=request)
+
+    def test_list_returns_allowlisted_structured_batch(self, runner, mock_client):
+        mock_client.list_messages.return_value = [
+            Message(id="m1", thread_id="t1", from_="", subject="", date="")
+        ]
+        mock_client.get_message.return_value = Message(
+            id="m1",
+            thread_id="t1",
+            from_="sender",
+            to="recipient",
+            subject="Subject",
+            date="today",
+            label_ids=["INBOX"],
+            body="Body",
+        )
+        result = self.invoke_json(
+            runner,
+            json.dumps(
+                {
+                    "operation": "list",
+                    "query": "is:unread",
+                    "label_ids": ["INBOX"],
+                    "max_results": 1,
+                    "fields": ["id", "subject"],
+                }
+            ),
+            mock_client,
+        )
+        response = json.loads(result.output)
+        assert result.exit_code == 0
+        assert response == {"ok": True, "data": [{"id": "m1", "subject": "Subject"}]}
+        mock_client.list_messages.assert_called_once_with(
+            query="is:unread", label_ids=["INBOX"], max_results=1
+        )
+        mock_client.get_message.assert_called_once_with("m1")
+
+    def test_list_enforces_limit_when_gmail_returns_more_messages(self, runner, mock_client):
+        mock_client.list_messages.return_value = [
+            Message(id=f"m{i}", thread_id=f"t{i}", from_="", subject="", date="")
+            for i in range(1, 4)
+        ]
+        mock_client.get_message.side_effect = lambda message_id: Message(
+            id=message_id,
+            thread_id=f"t{message_id[1:]}",
+            from_="sender",
+            subject=f"Subject {message_id}",
+            date="today",
+        )
+
+        result = self.invoke_json(
+            runner,
+            json.dumps({"operation": "list", "max_results": 2, "fields": ["id", "subject"]}),
+            mock_client,
+        )
+
+        assert result.exit_code == 0
+        assert json.loads(result.output) == {
+            "ok": True,
+            "data": [
+                {"id": "m1", "subject": "Subject m1"},
+                {"id": "m2", "subject": "Subject m2"},
+            ],
+        }
+        assert mock_client.get_message.call_args_list == [
+            (("m1",),),
+            (("m2",),),
+        ]
+
+    @pytest.mark.parametrize("limit", [0, 101, True, "2"])
+    def test_list_rejects_invalid_limits_without_gmail_call(self, runner, mock_client, limit):
+        result = self.invoke_json(
+            runner, json.dumps({"operation": "list", "max_results": limit}), mock_client
+        )
+        response = json.loads(result.output)
+        assert result.exit_code == 0
+        assert response["ok"] is False
+        assert response["error"]["message"] == "Request failed"
+        mock_client.list_messages.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "payload", ["{", "[]", '{"operation":"get"}', '{"operation":"list","extra":1}']
+    )
+    def test_invalid_json_or_shape_is_structured_and_does_not_call_gmail(
+        self, runner, mock_client, payload
+    ):
+        result = self.invoke_json(runner, payload, mock_client)
+        response = json.loads(result.output)
+        assert result.exit_code == 0
+        assert response["ok"] is False
+        assert "Traceback" not in result.output
+        mock_client.list_messages.assert_not_called()
+        mock_client.modify_message.assert_not_called()
+
+    @pytest.mark.parametrize("authorization", [False, "true", None])
+    def test_mark_without_boolean_authorization_does_not_mutate(
+        self, runner, mock_client, authorization
+    ):
+        request = json.dumps(
+            {"operation": "mark", "id": "m1", "action": "trash", "authorized": authorization}
+        )
+        result = self.invoke_json(runner, request, mock_client)
+        response = json.loads(result.output)
+        assert result.exit_code == 0
+        assert response["ok"] is False
+        mock_client.trash_message.assert_not_called()
+        mock_client.modify_message.assert_not_called()
+
+    @pytest.mark.parametrize("action", ["read", "unread", "trash"])
+    def test_authorized_mark_executes_without_interactive_prompt(self, runner, mock_client, action):
+        request = json.dumps(
+            {"operation": "mark", "id": "m1", "action": action, "authorized": True}
+        )
+        result = self.invoke_json(runner, request, mock_client)
+        assert result.exit_code == 0
+        assert json.loads(result.output) == {"ok": True, "data": {"id": "m1", "action": action}}
+        if action == "read":
+            mock_client.modify_message.assert_called_once_with("m1", remove_labels=["UNREAD"])
+        elif action == "unread":
+            mock_client.modify_message.assert_called_once_with("m1", add_labels=["UNREAD"])
+        else:
+            mock_client.trash_message.assert_called_once_with("m1")
+
+    def test_gmail_failure_is_structured_and_does_not_leak_error_or_secret(
+        self, runner, mock_client
+    ):
+        mock_client.get_message.side_effect = GmailError("oauth_token=top-secret internal detail")
+        result = self.invoke_json(runner, '{"operation":"get","id":"m1"}', mock_client)
+        response = json.loads(result.output)
+        assert response["ok"] is False
+        assert response["error"] == {
+            "code": "invalid_request_or_gmail_error",
+            "message": "Request failed",
+        }
+        assert "top-secret" not in result.output
+        assert "oauth_token" not in result.output
+
+    def test_unexpected_client_error_is_structured_without_leaking_details(self, runner):
+        secret = "internal-detail oauth_token=top-secret"
+        with patch.object(_cli_mod, "_create_client", side_effect=RuntimeError(secret)):
+            result = runner.invoke(cli, ["harness"], input='{"operation":"get","id":"m1"}')
+
+        assert result.exit_code == 0
+        assert json.loads(result.output) == {
+            "ok": False,
+            "error": {"code": "internal_error", "message": "Request failed"},
+        }
+        assert secret not in result.output
+        assert "top-secret" not in result.output
+        assert "oauth_token" not in result.output
+        assert "internal-detail" not in result.output
+
+    def test_harness_does_not_start_label_refresh_worker(self, runner, mock_client):
+        with (
+            patch.object(_cli_mod, "_create_client", return_value=mock_client),
+            patch.object(_cli_mod, "_refresh_labels_background") as refresh,
+        ):
+            runner.invoke(cli, ["harness"], input='{"operation":"get","id":"m1"}')
+        refresh.assert_not_called()
+
+
 class TestAuthLogout:
     def test_logout(self, runner):
         with patch.object(_cli_mod, "AuthService") as mock_svc:

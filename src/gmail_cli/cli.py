@@ -2,6 +2,7 @@
 import json
 import os
 import shlex
+import sys
 import threading
 
 import click
@@ -173,7 +174,8 @@ class LoggingGroup(click.Group):
         parts = list(getattr(ctx, "protected_args", ())) + list(ctx.args)
         if parts:
             get_logger().info("CMD: gmail %s", " ".join(parts))
-        _refresh_labels_background()
+        if parts[:1] != ["harness"]:
+            _refresh_labels_background()
         return super().invoke(ctx)
 
     def get_help(self, ctx):
@@ -186,6 +188,100 @@ class LoggingGroup(click.Group):
 @click.group(cls=LoggingGroup)
 def cli():
     pass
+
+
+_HARNESS_FIELDS = ("id", "thread_id", "from", "to", "subject", "date", "label_ids", "body")
+_HARNESS_MAX_RESULTS = 100
+
+
+def _harness_message(message):
+    return {
+        "id": message.id,
+        "thread_id": message.thread_id,
+        "from": message.from_,
+        "to": message.to,
+        "subject": message.subject,
+        "date": message.date,
+        "label_ids": message.label_ids,
+        "body": message.body,
+    }
+
+
+@cli.command("harness")
+def harness_request():  # noqa: PLR0912
+    """Process one JSON request on stdin for an external harness."""
+    try:
+        request = json.load(sys.stdin)
+        if not isinstance(request, dict) or request.get("operation") not in {"list", "get", "mark"}:
+            raise ValueError("Invalid request operation")
+        operation = request["operation"]
+        if operation == "list":
+            allowed = {"operation", "query", "label_ids", "max_results", "fields"}
+            if set(request) - allowed:
+                raise ValueError("Unsupported request fields")
+            query = request.get("query", "")
+            label_ids = request.get("label_ids", [])
+            limit = request.get("max_results", 20)
+            fields = request.get("fields", list(_HARNESS_FIELDS))
+            if (
+                not isinstance(query, str)
+                or not isinstance(label_ids, list)
+                or any(not isinstance(label, str) for label in label_ids)
+                or type(limit) is not int
+                or not 1 <= limit <= _HARNESS_MAX_RESULTS
+                or not isinstance(fields, list)
+                or not fields
+                or any(field not in _HARNESS_FIELDS for field in fields)
+            ):
+                raise ValueError("Invalid list filters or fields")
+            client = _create_client()
+            messages = client.list_messages(
+                query=query, label_ids=label_ids or None, max_results=limit
+            )
+            results = []
+            for message in messages[:limit]:
+                full = client.get_message(message.id)
+                results.append(
+                    {key: value for key, value in _harness_message(full).items() if key in fields}
+                )
+            response = {"ok": True, "data": results}
+        elif operation == "get":
+            if (
+                set(request) != {"operation", "id"}
+                or not isinstance(request["id"], str)
+                or not request["id"]
+            ):
+                raise ValueError("Invalid message request")
+            message = _create_client().get_message(request["id"])
+            response = {"ok": True, "data": _harness_message(message)}
+        else:
+            if (
+                set(request) != {"operation", "id", "action", "authorized"}
+                or request.get("authorized") is not True
+                or not isinstance(request.get("id"), str)
+                or not request["id"]
+                or request.get("action") not in {"read", "unread", "trash"}
+            ):
+                raise ValueError("Invalid or unauthorized write request")
+            client = _create_client()
+            if request["action"] == "read":
+                client.modify_message(request["id"], remove_labels=["UNREAD"])
+            elif request["action"] == "unread":
+                client.modify_message(request["id"], add_labels=["UNREAD"])
+            else:
+                client.trash_message(request["id"])
+            response = {"ok": True, "data": {"id": request["id"], "action": request["action"]}}
+    except (json.JSONDecodeError, ValueError, AuthError, GmailError, OSError):
+        response = {
+            "ok": False,
+            "error": {
+                "code": "invalid_request_or_gmail_error",
+                "message": "Request failed",
+            },
+        }
+    except Exception:  # noqa: BLE001
+        response = {"ok": False, "error": {"code": "internal_error", "message": "Request failed"}}
+    click.echo(json.dumps(response, ensure_ascii=False))
 
 
 @cli.group()

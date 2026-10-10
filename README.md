@@ -58,6 +58,25 @@ pip install -e ".[test,dev]"
 
 ## Usage
 
+### External harness (JSON subprocess)
+
+`gmail harness` reads exactly one JSON object from stdin and writes one JSON
+response to stdout. It uses the existing OAuth token and Gmail client; tokens
+and credential contents are never included in the protocol. The harness owns
+model interpretation and decisions. Reads support `list` (query, label IDs,
+limit 1–100, and allow-listed fields) and `get`; writes support only `mark`
+actions `read`, `unread`, or `trash`, and require `"authorized": true` in the
+request. Invalid requests and Gmail failures return a generic structured error.
+No interactive confirmation is used for this explicit authorization.
+
+```bash
+printf '%s\n' '{"operation":"list","query":"is:unread","max_results":10,"fields":["id","from","subject","body"]}' | gmail harness
+printf '%s\n' '{"operation":"mark","id":"MESSAGE_ID","action":"read","authorized":true}' | gmail harness
+```
+
+Each invocation is an independent subprocess. Existing standalone AI commands
+remain available separately.
+
 ### Authentication
 
 ```bash
