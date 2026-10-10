@@ -180,6 +180,95 @@ def test_apply_dry_run_archive_cli_skips_prompts_and_all_writes(tmp_path):
     assert path.read_bytes() == original_artifact
 
 
+@pytest.mark.parametrize("options", [[], ["--archive"]])
+def test_apply_cli_default_non_tty_fails_without_any_writes(tmp_path, options):
+    client, path, _ = create_plan(tmp_path)
+    with (
+        patch.object(cli_module, "_create_client", return_value=client),
+        patch.object(batch_ops, "click_tty_confirm", return_value=False) as confirm,
+    ):
+        result = CliRunner().invoke(cli, ["batch", "apply", "--plan", str(path), *options])
+    assert result.exit_code == 2
+    response = json.loads(result.output)
+    assert response["status"] == "failed"
+    assert response["errors"] == ["TTY confirmation required"]
+    assert confirm.call_count == 1
+    client.create_label.assert_not_called()
+    client.modify_message.assert_not_called()
+
+
+@pytest.mark.parametrize("archive", [False, True])
+def test_apply_cli_yes_bypasses_prompts_and_archive_is_separate(tmp_path, archive):
+    client, path, _ = create_plan(tmp_path)
+    args = ["batch", "apply", "--plan", str(path), "--yes"]
+    if archive:
+        args.append("--archive")
+    with (
+        patch.object(cli_module, "_create_client", return_value=client),
+        patch.object(
+            batch_ops, "click_tty_confirm", side_effect=AssertionError("prompted")
+        ) as confirm,
+    ):
+        result = CliRunner().invoke(cli, args)
+    assert result.exit_code == 0
+    response = json.loads(result.output)
+    assert response["status"] == "success"
+    assert response["results"] == [{"message_id": "m1", "status": "success"}]
+    confirm.assert_not_called()
+    client.modify_message.assert_called_once_with(
+        "m1", add_labels=["L1"], remove_labels=["INBOX"] if archive else None
+    )
+
+
+@pytest.mark.parametrize("options", [[], ["--yes"], ["--archive"], ["--yes", "--archive"]])
+def test_apply_cli_dry_run_never_prompts_or_writes(tmp_path, options):
+    client, path, _ = create_plan(tmp_path)
+    with (
+        patch.object(cli_module, "_create_client", return_value=client),
+        patch.object(
+            batch_ops, "click_tty_confirm", side_effect=AssertionError("prompted")
+        ) as confirm,
+    ):
+        result = CliRunner().invoke(
+            cli, ["batch", "apply", "--plan", str(path), "--dry-run", *options]
+        )
+    assert result.exit_code == 0
+    response = json.loads(result.output)
+    assert response["status"] == "success"
+    assert response["results"][0]["status"] == "preflight_ok"
+    assert response["results"][0]["expected_archived"] is ("--archive" in options)
+    confirm.assert_not_called()
+    client.create_label.assert_not_called()
+    client.modify_message.assert_not_called()
+
+
+def test_apply_yes_preserves_unread_label(tmp_path):
+    client, path, _ = create_plan(tmp_path)
+    client.get_message_metadata.side_effect = lambda mid: msg(mid, ["INBOX", "UNREAD"])
+    with patch.object(batch_ops, "click_tty_confirm", side_effect=AssertionError("prompted")):
+        response = batch_ops.apply_plan(client, path, skip_confirmation=True)
+    assert response["status"] == "success"
+    client.modify_message.assert_called_once_with("m1", add_labels=["L1"], remove_labels=None)
+
+
+def test_apply_confirmation_cancel_and_archive_cancel_do_not_write(tmp_path):
+    client, path, _ = create_plan(tmp_path)
+    with (
+        patch.object(batch_ops, "click_tty_confirm", side_effect=[False]),
+        pytest.raises(ValueError, match="TTY confirmation required"),
+    ):
+        batch_ops.apply_plan(client, path)
+    client.create_label.assert_not_called()
+    client.modify_message.assert_not_called()
+    with (
+        patch.object(batch_ops, "click_tty_confirm", side_effect=[True, False]),
+        pytest.raises(ValueError, match="Archive confirmation declined"),
+    ):
+        batch_ops.apply_plan(client, path, archive=True)
+    client.create_label.assert_not_called()
+    client.modify_message.assert_not_called()
+
+
 def test_cli_batch_apply_partial_has_exit_three(tmp_path):
     client, path, _ = create_plan(tmp_path)
     client.modify_message.side_effect = GmailError("write failed")

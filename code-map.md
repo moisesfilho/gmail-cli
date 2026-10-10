@@ -8,7 +8,7 @@ com classificacao de emails por provedores de modelos de linguagem.
 | Caminho | Responsabilidade |
 | --- | --- |
 | `src/gmail_cli/cli.py` | Comandos Click standalone e batch, processamento de prompts, classificacao e exportacao. |
-| `src/gmail_cli/batch_ops.py` | Listagem limitada, planejamento privado, preflight/aplicacao confirmada e verificacao de batches. |
+| `src/gmail_cli/batch_ops.py` | Listagem limitada, planejamento privado, preflight/aplicacao confirmada (ou explicitamente sem prompts) e verificacao de batches. |
 | `src/gmail_cli/cli.py` (`cli`) | Grupo raiz exposto pelo comando instalado `gmail`. |
 | `src/gmail_cli/__main__.py` | Execucao do CLI como modulo Python. |
 | `src/gmail_cli/auth.py` | Autenticacao OAuth do Google e ciclo de vida das credenciais. |
@@ -25,7 +25,7 @@ com classificacao de emails por provedores de modelos de linguagem.
 | `tests/conftest.py` | Fixtures compartilhadas dos testes. |
 | `Pendencias.md` | Pendencias conhecidas do projeto. |
 | `README.md`, `README.pt-BR.md` | Documentacao de uso em ingles e portugues. |
-| `.opencode/skills/gmail-cli/SKILL.md` | Instrucoes para agentes recuperarem, planejarem, aplicarem e verificarem operacoes Gmail pelo CLI sem scripts auxiliares; documenta schemas, confirmacoes e seguranca. |
+| `.opencode/skills/gmail-cli/SKILL.md` | Instrucoes para agentes recuperarem, planejarem, aplicarem e verificarem operacoes Gmail pelo CLI sem scripts auxiliares; documenta schemas, confirmacoes padrao, `--yes` explicito, arquivamento separado e seguranca. |
 | `pyproject.toml` | Metadados, dependencias, entry point e configuracao de pytest, cobertura e Ruff. |
 
 ## Stack

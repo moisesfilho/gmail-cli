@@ -352,10 +352,22 @@ def batch_plan(input_path, output_path, output_format):
 @click.option("--format", "output_format", type=click.Choice(["json"]), default="json")
 @click.option("--archive", is_flag=True)
 @click.option("--dry-run", is_flag=True)
-def batch_apply(plan_path, output_format, archive, dry_run):
+@click.option(
+    "--yes",
+    "skip_confirmation",
+    is_flag=True,
+    help="Skip both apply and archive confirmations (does not enable archiving)",
+)
+def batch_apply(plan_path, output_format, archive, dry_run, skip_confirmation):
     try:
         _read_plan(plan_path)
-        response = apply_plan(_create_client(), plan_path, dry_run=dry_run, archive=archive)
+        response = apply_plan(
+            _create_client(),
+            plan_path,
+            dry_run=dry_run,
+            archive=archive,
+            skip_confirmation=skip_confirmation,
+        )
         click.echo(json.dumps(response, ensure_ascii=False))
         if response["status"] == "partial":
             raise click.exceptions.Exit(3)

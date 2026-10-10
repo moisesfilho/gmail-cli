@@ -250,7 +250,22 @@ def _preflight(client, plan):
     return prepared
 
 
-def apply_plan(client, path, dry_run=False, archive=False):
+def _create_plan_labels(client, plan):
+    created = {}
+    for entry in plan["labels_to_create"]:
+        matches = [
+            label
+            for label in client.list_labels()
+            if normalize_label(label.name) == entry["normalized_name"]
+        ]
+        if len(matches) > 1:
+            raise ValueError("Ambiguous label appeared before creation")
+        label = matches[0] if matches else client.create_label(entry["label_name"])
+        created[entry["normalized_name"]] = label["id"] if isinstance(label, dict) else label.id
+    return created
+
+
+def apply_plan(client, path, dry_run=False, archive=False, skip_confirmation=False):
     plan = _read_plan(path)
     prepared = _preflight(client, plan)
     if dry_run:
@@ -267,22 +282,14 @@ def apply_plan(client, path, dry_run=False, archive=False):
                 for row in prepared
             ],
         }
-    if not click_tty_confirm("Apply this Gmail batch plan?"):
-        raise ValueError("TTY confirmation required")
-    if archive and not click_tty_confirm("Confirm archive of these messages?"):
-        raise ValueError("Archive confirmation declined")
+    if not skip_confirmation:
+        if not click_tty_confirm("Apply this Gmail batch plan?"):
+            raise ValueError("TTY confirmation required")
+        if archive and not click_tty_confirm("Confirm archive of these messages?"):
+            raise ValueError("Archive confirmation declined")
     created = {}
     try:
-        for entry in plan["labels_to_create"]:
-            matches = [
-                label
-                for label in client.list_labels()
-                if normalize_label(label.name) == entry["normalized_name"]
-            ]
-            if len(matches) > 1:
-                raise ValueError("Ambiguous label appeared before creation")
-            label = matches[0] if matches else client.create_label(entry["label_name"])
-            created[entry["normalized_name"]] = label["id"] if isinstance(label, dict) else label.id
+        created = _create_plan_labels(client, plan)
     except (GmailError, ValueError, OSError, KeyError):
         return {
             "command": "gmail batch apply",

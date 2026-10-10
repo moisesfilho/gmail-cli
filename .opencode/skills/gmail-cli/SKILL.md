@@ -16,9 +16,9 @@ The old `gmail harness` command and its JSON protocol have been removed. Do not 
 - Preserve each message `id` from the list response through classification and planning. Never reconstruct IDs from subjects, senders, or dates.
 - Reuse existing labels. First inspect `gmail list labels --format json`; use the exact canonical label names. For an intentional category/name mismatch, provide an explicit `label_map` in the plan input. Do not guess with fuzzy/plural matching.
 - Planning is read-only. It writes a local private plan artifact but does not create labels or change Gmail messages.
-- `gmail batch apply` requires an interactive confirmation. Missing labels are created only after that confirmation. `--archive` requires an additional, separate confirmation; without it, the inbox state is preserved.
-- Never bypass, auto-answer, or simulate the apply/archive confirmation. If the execution environment has no interactive TTY, stop before writing and tell the user that apply must be confirmed in an interactive terminal.
-- `--dry-run` performs preflight without Gmail writes or confirmation prompts.
+- `gmail batch apply` prompts for confirmation by default. Missing labels are created only after apply confirmation. `--archive` requires an explicit user request and must be passed separately; it prompts for a distinct archive confirmation by default. Without `--archive`, the inbox state is preserved.
+- Use `--yes` only when the user explicitly requests execution without confirmation interaction. It bypasses both the apply confirmation and, when `--archive` is also supplied, the archive confirmation. Never add `--yes` or `--archive` automatically. If the user has not explicitly requested confirmation-free execution and there is no interactive TTY, stop before writing and tell the user that apply requires confirmation in an interactive terminal.
+- `--dry-run` performs preflight without Gmail writes or confirmation prompts, regardless of `--yes`.
 - Gmail batch writes are not transactional. A failure partway through can leave a partial result; report the per-message results and do not claim rollback.
 - Do not print message bodies in plan/apply/verify summaries. Keep artifacts and temporary input files local and private; do not put email bodies, OAuth data, or tokens in logs or command arguments.
 - The project OAuth scope is broad (`https://mail.google.com/`). Batch limits constrain which messages the command processes, not what the OAuth credential can access.
@@ -80,7 +80,7 @@ Plan input schema: `version` must be integer `1`; `query` a Gmail query string; 
 
 ### 4. Apply only after the user requests the changes
 
-First inspect the plan response/artifact and summarize which labels will be applied, which labels will be created, how many messages are affected, and whether archiving was requested. Then:
+First inspect the plan response/artifact and summarize which labels will be applied, which labels will be created, how many messages are affected, and whether archiving was requested. By default, run interactively and allow the CLI to prompt for confirmation:
 
 ```bash
 gmail batch apply --plan /private/path/gmail-plan.json --format json
@@ -92,7 +92,13 @@ This applies labels and preserves `INBOX`. To archive, the user must have explic
 gmail batch apply --plan /private/path/gmail-plan.json --format json --archive
 ```
 
-The command prompts for apply confirmation and, with `--archive`, a second archive confirmation. Do not proceed through either prompt without the user's explicit confirmation. For a non-mutating preflight:
+By default, the command prompts for apply confirmation and, with `--archive`, a second archive confirmation. Do not proceed through either prompt without the user's explicit confirmation. If and only if the user explicitly requests execution without confirmation interaction, add `--yes`:
+
+```bash
+gmail batch apply --plan /private/path/gmail-plan.json --format json --yes
+```
+
+`--yes` bypasses both prompts, including the archive prompt when combined with `--archive`. It does not authorize archiving: only add `--archive` after a distinct explicit user request to archive, and pass it separately, for example `gmail batch apply --plan /private/path/gmail-plan.json --format json --archive --yes`. Never auto-add either flag. For a non-mutating, prompt-free preflight:
 
 ```bash
 gmail batch apply --plan /private/path/gmail-plan.json --format json --dry-run
@@ -128,6 +134,6 @@ This standalone command uses the configured model. Without `--apply`, it only pr
 
 1. Confirm the target IDs came from the requested `batch list` response and the plan query/max match that retrieval.
 2. Inspect canonical label names and the plan's `labels_to_create` list.
-3. Confirm the user asked for label application; require a separate explicit request before `--archive`.
-4. Ensure the apply command is running in an interactive terminal. Never bypass the CLI's confirmation prompts.
+3. Confirm the user asked for label application; require a distinct explicit request before adding `--archive`.
+4. Leave `--yes` off by default. Add it only when the user explicitly requests execution without confirmation interaction; it bypasses apply and archive prompts, but does not replace the separate authorization required for `--archive`. Never auto-add either flag. If confirmation is expected, ensure the apply command is running in an interactive terminal.
 5. After apply, inspect `status` and every item in `results`; if partial, report exactly which messages succeeded, failed, or were not attempted.

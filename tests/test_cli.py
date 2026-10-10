@@ -49,6 +49,18 @@ class TestEntryPoint:
         assert "Command: gmail prompt" in result.output
         assert "--response-language" in result.output
 
+    def test_batch_apply_help_documents_yes_and_archive_separately(self, runner):
+        result = runner.invoke(cli, ["batch", "apply", "--help"])
+        assert result.exit_code == 0
+        assert "--yes" in result.output
+        assert "Skip both apply and archive confirmations" in result.output
+        assert "does not enable\n                   archiving" in result.output
+
+    def test_batch_apply_rejects_unknown_confirmation_option(self, runner):
+        result = runner.invoke(cli, ["batch", "apply", "--plan", "missing", "--no-confirm"])
+        assert result.exit_code == 2
+        assert "No such option" in result.output
+
     def test_create_client(self):
         with patch.object(_cli_mod, "AuthService") as mock_auth:
             mock_service = MagicMock()
