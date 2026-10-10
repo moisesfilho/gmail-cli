@@ -25,6 +25,7 @@ com classificacao de emails por provedores de modelos de linguagem.
 | `tests/conftest.py` | Fixtures compartilhadas dos testes. |
 | `Pendencias.md` | Pendencias conhecidas do projeto. |
 | `README.md`, `README.pt-BR.md` | Documentacao de uso em ingles e portugues. |
+| `.opencode/skills/gmail-cli/SKILL.md` | Instrucoes para agentes recuperarem, planejarem, aplicarem e verificarem operacoes Gmail pelo CLI sem scripts auxiliares; documenta schemas, confirmacoes e seguranca. |
 | `pyproject.toml` | Metadados, dependencias, entry point e configuracao de pytest, cobertura e Ruff. |
 
 ## Stack
