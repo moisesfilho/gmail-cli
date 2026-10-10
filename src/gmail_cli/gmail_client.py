@@ -121,6 +121,12 @@ class GmailClient:
             label_ids=meta.get("labelIds", []),
         )
 
+    def get_message_metadata(self, msg_id):
+        try:
+            return self._build_message_meta({"id": msg_id})
+        except HttpError as e:
+            raise GmailError("Erro ao obter metadados da mensagem") from e
+
     def get_message(self, msg_id):
         try:
             msg = (
@@ -205,6 +211,7 @@ class GmailClient:
                     id=lab["id"],
                     name=lab["name"],
                     label_list_visibility=lab.get("labelListVisibility", "labelShow"),
+                    type=lab.get("type", "user"),
                 )
                 for lab in result.get("labels", [])
             ]

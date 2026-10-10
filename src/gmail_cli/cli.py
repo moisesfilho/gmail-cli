@@ -3,15 +3,14 @@ import json
 import os
 import shlex
 import sys
-import threading
 
 import click
 
 from .auth import AuthError, AuthService
+from .batch_ops import _read_plan, apply_plan, build_plan, list_batch, verify_plan
 from .formatter import CliFormatter
 from .gmail_client import GmailClient, GmailError
-from .harness_v1 import apply_v1, list_v1, validate_v1_request
-from .labels_cache import label_names, load_labels, refresh_labels
+from .labels_cache import label_names, load_labels
 from .logging_utils import get_logger
 from .models import Message
 from .providers import create_provider, load_config, save_config
@@ -49,7 +48,7 @@ def _export_messages(messages, export_path: str):
                 indent=2,
                 ensure_ascii=False,
             )
-        get_logger().info("Export generated at: %s", os.path.dirname(os.path.abspath(export_path)))
+        get_logger().info("Export generated at: %s", os.path.abspath(export_path))
 
     elif ext == ".jsonl":
         with open(export_path, "w", encoding="utf-8") as f:
@@ -65,7 +64,7 @@ def _export_messages(messages, export_path: str):
                     "body": m.body,
                 }
                 f.write(json.dumps(line_data, ensure_ascii=False) + "\n")
-        get_logger().info("Export generated at: %s", os.path.dirname(os.path.abspath(export_path)))
+        get_logger().info("Export generated at: %s", os.path.abspath(export_path))
 
     elif ext == ".md":
         with open(export_path, "w", encoding="utf-8") as f:
@@ -82,7 +81,7 @@ def _export_messages(messages, export_path: str):
                 f.write(f"- **Labels:** {labels_str}\n\n")
                 f.write("## Body\n\n")
                 f.write(m.body or "(No Body)")
-        get_logger().info("Export generated at: %s", os.path.dirname(os.path.abspath(export_path)))
+        get_logger().info("Export generated at: %s", os.path.abspath(export_path))
 
     else:
         # Default to JSON
@@ -158,177 +157,34 @@ def _apply_suggestion_labels(client, suggestions):
 fmt = CliFormatter()
 
 
-def _refresh_labels_worker():
-    try:
-        client = _create_client()
-        refresh_labels(client)
-    except Exception:  # noqa: BLE001
-        pass  # nosec B110
-
-
-def _refresh_labels_background():
-    threading.Thread(target=_refresh_labels_worker, daemon=True).start()
-
-
 class LoggingGroup(click.Group):
-    def invoke(self, ctx):
-        parts = list(getattr(ctx, "protected_args", ())) + list(ctx.args)
-        if parts:
-            get_logger().info("CMD: gmail %s", " ".join(parts))
-        if parts[:1] != ["harness"]:
-            _refresh_labels_background()
-        return super().invoke(ctx)
-
     def get_help(self, ctx):
-        help_text = super().get_help(ctx)
-        if ctx.find_root().command is self:
-            help_text += "\n\n" + _build_full_reference(ctx, include_prompt=True)
-        return help_text
+        return f"{super().get_help(ctx)}\n\n{_build_full_reference(ctx, include_prompt=True)}"
+
+    def invoke(self, ctx):
+        command_path = ["gmail"]
+        command = self
+        pending_args = [*ctx.protected_args, *ctx.args]
+        while isinstance(command, click.Group) and pending_args:
+            subcommand_name = pending_args.pop(0)
+            subcommand = command.get_command(ctx, subcommand_name)
+            if subcommand is None:
+                break
+            command_path.append(subcommand_name)
+            command = subcommand
+        command_name = " ".join(command_path)
+        is_batch_group = command_name == "gmail batch"
+        is_json_label_listing = (
+            command_name == "gmail list labels" and ctx.params.get("output_format") == "json"
+        )
+        if not is_batch_group and not is_json_label_listing:
+            get_logger().info("CMD: %s", command_name)
+        return super().invoke(ctx)
 
 
 @click.group(cls=LoggingGroup)
 def cli():
     pass
-
-
-_HARNESS_FIELDS = ("id", "thread_id", "from", "to", "subject", "date", "label_ids", "body")
-_HARNESS_MAX_RESULTS = 100
-
-
-def _harness_message(message):
-    return {
-        "id": message.id,
-        "thread_id": message.thread_id,
-        "from": message.from_,
-        "to": message.to,
-        "subject": message.subject,
-        "date": message.date,
-        "label_ids": message.label_ids,
-        "body": message.body,
-    }
-
-
-@cli.command("harness")
-def harness_request():  # noqa: PLR0912, PLR0915
-    """Process one JSON request on stdin for an external harness."""
-    request = None
-    try:
-        request = json.load(sys.stdin)
-        if isinstance(request, dict) and "version" in request:
-            if type(request.get("version")) is not int or request["version"] != 1:
-                raise ValueError("Unsupported protocol version")
-            operation = request.get("operation")
-            validate_v1_request(request)
-            client = _create_client()
-            if operation == "list" or (operation is None and "assignments" not in request):
-                response = list_v1(client, request)
-                click.echo(json.dumps(response, ensure_ascii=False))
-                return
-            else:
-                response = apply_v1(
-                    client, {key: value for key, value in request.items() if key != "operation"}
-                )
-                click.echo(json.dumps(response, ensure_ascii=False))
-                status = response["status"]
-                if status == "partial":
-                    raise click.exceptions.Exit(3)
-                if status in {"failed", "preflight_failed"}:
-                    raise click.exceptions.Exit(2)
-                return
-        if not isinstance(request, dict) or request.get("operation") not in {"list", "get", "mark"}:
-            raise ValueError("Invalid request operation")
-        operation = request["operation"]
-        if operation == "list":
-            allowed = {"operation", "query", "label_ids", "max_results", "fields"}
-            if set(request) - allowed:
-                raise ValueError("Unsupported request fields")
-            query = request.get("query", "")
-            label_ids = request.get("label_ids", [])
-            limit = request.get("max_results", 20)
-            fields = request.get("fields", list(_HARNESS_FIELDS))
-            if (
-                not isinstance(query, str)
-                or not isinstance(label_ids, list)
-                or any(not isinstance(label, str) for label in label_ids)
-                or type(limit) is not int
-                or not 1 <= limit <= _HARNESS_MAX_RESULTS
-                or not isinstance(fields, list)
-                or not fields
-                or any(field not in _HARNESS_FIELDS for field in fields)
-            ):
-                raise ValueError("Invalid list filters or fields")
-            client = _create_client()
-            messages = client.list_messages(
-                query=query, label_ids=label_ids or None, max_results=limit
-            )
-            results = []
-            for message in messages[:limit]:
-                full = client.get_message(message.id)
-                results.append(
-                    {key: value for key, value in _harness_message(full).items() if key in fields}
-                )
-            response = {"ok": True, "data": results}
-        elif operation == "get":
-            if (
-                set(request) != {"operation", "id"}
-                or not isinstance(request["id"], str)
-                or not request["id"]
-            ):
-                raise ValueError("Invalid message request")
-            message = _create_client().get_message(request["id"])
-            response = {"ok": True, "data": _harness_message(message)}
-        else:
-            if (
-                set(request) != {"operation", "id", "action", "authorized"}
-                or request.get("authorized") is not True
-                or not isinstance(request.get("id"), str)
-                or not request["id"]
-                or request.get("action") not in {"read", "unread", "trash"}
-            ):
-                raise ValueError("Invalid or unauthorized write request")
-            client = _create_client()
-            if request["action"] == "read":
-                client.modify_message(request["id"], remove_labels=["UNREAD"])
-            elif request["action"] == "unread":
-                client.modify_message(request["id"], add_labels=["UNREAD"])
-            else:
-                client.trash_message(request["id"])
-            response = {"ok": True, "data": {"id": request["id"], "action": request["action"]}}
-    except click.exceptions.Exit:
-        raise
-    except (json.JSONDecodeError, ValueError, AuthError, GmailError, OSError):
-        if isinstance(request, dict) and "version" in request:
-            response = {
-                "version": 1,
-                "status": "failed",
-                "results": [],
-                "error": {"code": "request_or_gmail_error", "message": "Request failed"},
-            }
-            click.echo(json.dumps(response, ensure_ascii=False))
-            raise click.exceptions.Exit(2)
-        response = {
-            "ok": False,
-            "error": {
-                "code": "invalid_request_or_gmail_error",
-                "message": "Request failed",
-            },
-        }
-    except Exception:  # noqa: BLE001
-        if isinstance(request, dict) and "version" in request:
-            click.echo(
-                json.dumps(
-                    {
-                        "version": 1,
-                        "status": "failed",
-                        "results": [],
-                        "error": {"code": "internal_error", "message": "Request failed"},
-                    },
-                    ensure_ascii=False,
-                )
-            )
-            raise click.exceptions.Exit(2)
-        response = {"ok": False, "error": {"code": "internal_error", "message": "Request failed"}}
-    click.echo(json.dumps(response, ensure_ascii=False))
 
 
 @cli.group()
@@ -404,17 +260,154 @@ def list_messages(query, max_results, label, export, classify):
 
 
 @list_cmd.command("labels")
-def list_labels():
+@click.option("--format", "output_format", type=click.Choice(["table", "json"]), default="table")
+def list_labels(output_format):
     """List all labels."""
     try:
         client = _create_client()
         labels = client.list_labels()
+        if output_format == "json":
+            click.echo(
+                json.dumps(
+                    {
+                        "labels": [
+                            {"id": item.id, "name": item.name, "type": item.type} for item in labels
+                        ]
+                    },
+                    ensure_ascii=False,
+                )
+            )
+            return
         if not labels:
             fmt.info("No labels found.")
             return
         fmt.list_labels(labels)
     except (AuthError, GmailError) as e:
         fmt.error(str(e))
+
+
+@cli.group()
+def batch():
+    """Plan, apply, and verify bounded Gmail batches."""
+
+
+@batch.command("list")
+@click.option("--query", required=True)
+@click.option("--max", "maximum", type=click.IntRange(1, 100), default=20)
+@click.option("--format", "output_format", type=click.Choice(["json", "table"]), default="table")
+@click.option("--include-body", is_flag=True)
+def batch_list(query, maximum, output_format, include_body):
+    try:
+        client = _create_client()
+        response = list_batch(client, query, maximum, include_body)
+        if output_format == "json":
+            click.echo(json.dumps(response, ensure_ascii=False))
+        else:
+            for row in response["results"]:
+                click.echo(
+                    f"{row['id']}  {row.get('date', '')}  "
+                    f"{row.get('from', '')}  {row.get('subject', '')}"
+                )
+    except (AuthError, GmailError, ValueError) as error:
+        click.echo(
+            json.dumps(
+                {
+                    "command": "gmail batch list",
+                    "status": "failed",
+                    "results": [],
+                    "errors": [str(error)],
+                }
+            ),
+            err=True,
+        )
+        raise click.exceptions.Exit(2)
+
+
+@batch.command("plan")
+@click.option("--input", "input_path", required=True)
+@click.option("--out", "output_path", required=True, type=click.Path())
+@click.option("--format", "output_format", type=click.Choice(["json"]), default="json")
+def batch_plan(input_path, output_path, output_format):
+    try:
+        data = json.load(sys.stdin if input_path == "-" else open(input_path, encoding="utf-8"))
+        response = build_plan(_create_client(), data, output_path)
+        click.echo(json.dumps(response, ensure_ascii=False))
+    except (AuthError, GmailError, ValueError, OSError, json.JSONDecodeError) as error:
+        click.echo(
+            json.dumps(
+                {
+                    "command": "gmail batch plan",
+                    "status": "failed",
+                    "results": [],
+                    "errors": [str(error)],
+                }
+            ),
+            err=True,
+        )
+        raise click.exceptions.Exit(2)
+
+
+@batch.command("apply")
+@click.option("--plan", "plan_path", required=True, type=click.Path(exists=True))
+@click.option("--format", "output_format", type=click.Choice(["json"]), default="json")
+@click.option("--archive", is_flag=True)
+@click.option("--dry-run", is_flag=True)
+def batch_apply(plan_path, output_format, archive, dry_run):
+    try:
+        _read_plan(plan_path)
+        response = apply_plan(_create_client(), plan_path, dry_run=dry_run, archive=archive)
+        click.echo(json.dumps(response, ensure_ascii=False))
+        if response["status"] == "partial":
+            raise click.exceptions.Exit(3)
+    except click.exceptions.Exit:
+        raise
+    except (AuthError, GmailError, ValueError, OSError, KeyError) as error:
+        click.echo(
+            json.dumps(
+                {
+                    "command": "gmail batch apply",
+                    "status": "failed",
+                    "plan_id": "",
+                    "results": [],
+                    "errors": [str(error)],
+                }
+            ),
+            err=True,
+        )
+        raise click.exceptions.Exit(2)
+
+
+@batch.command("verify")
+@click.option("--plan", "plan_path", required=True, type=click.Path(exists=True))
+@click.option("--format", "output_format", type=click.Choice(["json", "table"]), default="table")
+def batch_verify(plan_path, output_format):
+    try:
+        _read_plan(plan_path)
+        response = verify_plan(_create_client(), plan_path)
+        if output_format == "json":
+            click.echo(json.dumps(response, ensure_ascii=False))
+        else:
+            for row in response["results"]:
+                click.echo(f"{row['message_id']}  {row['status']}")
+        if response["status"] != "success":
+            raise click.exceptions.Exit(3)
+    except click.exceptions.Exit:
+        raise
+    except (AuthError, GmailError, ValueError, OSError, KeyError) as error:
+        click.echo(
+            json.dumps(
+                {
+                    "command": "gmail batch verify",
+                    "status": "failed",
+                    "plan_id": "",
+                    "counts": {},
+                    "results": [],
+                    "errors": [str(error)],
+                }
+            ),
+            err=True,
+        )
+        raise click.exceptions.Exit(2)
 
 
 @list_cmd.command("drafts")
@@ -816,10 +809,11 @@ def _build_full_reference(ctx: click.Context, include_prompt: bool = False) -> s
 
         lines = []
         lines.append(f"Command: {full_name}")
-        if isinstance(cmd, LoggingGroup):
-            help_text = click.Group.get_help(cmd, sub_ctx)
-        else:
-            help_text = cmd.get_help(sub_ctx)
+        help_text = (
+            click.Group.get_help(cmd, sub_ctx)
+            if isinstance(cmd, click.Group)
+            else cmd.get_help(sub_ctx)
+        )
         lines.append(help_text)
         lines.append("-" * 40)
 

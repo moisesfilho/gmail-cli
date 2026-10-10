@@ -15,6 +15,14 @@ def _make_http_error(status=400, message=b"error"):
 
 
 class TestGmailClient:
+    def test_get_message_metadata_sanitizes_http_error(self, gmail_client):
+        gmail_client._service.users().messages().get.return_value.execute.side_effect = (
+            _make_http_error(message=b"synthetic private response")
+        )
+        with pytest.raises(GmailError) as raised:
+            gmail_client.get_message_metadata("m1")
+        assert "synthetic private response" not in str(raised.value)
+
     def test_list_message_page_sanitizes_http_error(self, gmail_client):
         gmail_client._service.users().messages().list.return_value.execute.side_effect = (
             _make_http_error(message=b"synthetic secret response")

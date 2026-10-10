@@ -28,13 +28,13 @@ CLI to manage Gmail emails, labels, drafts, and attachments from the terminal.
 - **Natural Language Prompt** — describe what you want in plain text
 - **Cyclic Application Logs** — records every command, prompt, and suggested response, keeping only the configured number of days (default 120)
 
-### Versioned JSON harness
+### Safe batch workflow
 
-`gmail harness` also accepts version 1 JSON requests on stdin. Its stdout contains the JSON response, including structured errors; the process exit status indicates failure (2 for v1 request/global failures and 3 for partial writes). Stderr is reserved for runtime diagnostics and is not the v1 error-response channel. Existing unversioned `list`, `get`, and `mark` requests and standalone commands remain available.
+`gmail batch list --query 'is:unread' --max 50 --format json` returns bounded results (1–100), without bodies unless `--include-body` is specified. `gmail list labels --format json` discovers label IDs and names; the default label table is unchanged.
 
-List request: `{"version":1,"operation":"list","query":"","label_ids":[],"limit":50,"cursor":null}`. `limit` must be 1–100. The response contains `version`, `messages`, `next_cursor`, and `has_more`. Cursors are opaque, unsigned positions bound to normalized query/label filters; they are not authorization credentials or snapshot guarantees. Message IDs are deduplicated in Gmail order. The body prefers plain text (HTML fallback), normalizes line endings, and bounds each JSON-serialized body string (including JSON escaping) to 16 KiB and the page total to 256 KiB. Truncated messages include the marker when it fits; if it cannot fit, `body` is empty and `body_truncated` is `true`. The optional `body_truncated` field appears only when truncation occurred.
+Create a plan from JSON on stdin using `gmail batch plan --input - --out plan.json --format json`. Input has `version: 1`, `query`, `max_results`, `messages: [{id, category}]`, and optional `label_map` for explicit category-to-label names. Planning checks live query membership and existing labels, reads message metadata only, and never writes to Gmail. Plan artifacts are atomically written with private permissions. Missing labels are created only during apply.
 
-Apply request: `{"version":1,"operation":"apply","authorize":true,"archive_authorized":false,"assignments":[{"message_id":"…","labels":["Label name or ID"]}]}`. Authorization must be literal `true`; archiving requires its separate literal `true`. All messages and existing non-system labels are preflighted before writes. Apply only adds labels, is idempotent, and never creates labels; INBOX removal occurs only with archive authorization. Responses give per-item `success`, `failed`, or `not_attempted` results and a global status. A preflight failure performs no writes; remote failures may leave partial changes and are not rolled back. Exit codes are 0 for success, 2 for global/preflight failure, and 3 for partial writes. No broader OAuth scopes are requested by this protocol.
+`gmail batch apply --plan plan.json --format json` requires an interactive confirmation; `--dry-run` performs preflight only. `--archive` changes the expected archive state and requires a separate interactive confirmation. Apply preflights all messages and labels before any write, then stops at the first write failure; Gmail changes are not rolled back. `gmail batch verify --plan plan.json --format json` checks assigned labels and expected INBOX state. Exit codes: 0 success, 2 invalid input/preflight failure, 3 partial writes or verification mismatch. `gmail classify` remains a separate AI workflow.
 
 ## Installation
 
@@ -65,25 +65,6 @@ pip install -e ".[test,dev]"
 > The token is refreshed automatically when expired. Old tokens from `~/.gmail_cli_token.*` are migrated on first run.
 
 ## Usage
-
-### External harness (JSON subprocess)
-
-`gmail harness` reads exactly one JSON object from stdin and writes one JSON
-response to stdout. It uses the existing OAuth token and Gmail client; tokens
-and credential contents are never included in the protocol. The harness owns
-model interpretation and decisions. Reads support `list` (query, label IDs,
-limit 1–100, and allow-listed fields) and `get`; writes support only `mark`
-actions `read`, `unread`, or `trash`, and require `"authorized": true` in the
-request. Invalid requests and Gmail failures return a generic structured error.
-No interactive confirmation is used for this explicit authorization.
-
-```bash
-printf '%s\n' '{"operation":"list","query":"is:unread","max_results":10,"fields":["id","from","subject","body"]}' | gmail harness
-printf '%s\n' '{"operation":"mark","id":"MESSAGE_ID","action":"read","authorized":true}' | gmail harness
-```
-
-Each invocation is an independent subprocess. Existing standalone AI commands
-remain available separately.
 
 ### Authentication
 
