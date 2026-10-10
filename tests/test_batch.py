@@ -1,3 +1,4 @@
+import importlib
 import json
 import os
 from datetime import datetime, timedelta
@@ -10,6 +11,8 @@ from gmail_cli import batch_ops
 from gmail_cli.cli import cli
 from gmail_cli.gmail_client import GmailError
 from gmail_cli.models import Label, Message
+
+cli_module = importlib.import_module("gmail_cli.cli")
 
 
 def msg(message_id, labels=None, body="Body"):
@@ -53,7 +56,7 @@ def test_batch_list_metadata_defaults_order_deduplicates_and_does_not_mutate():
     client = MagicMock()
     client.list_message_page.return_value = {"messages": [{"id": "b"}, {"id": "a"}, {"id": "b"}]}
     client.get_message_metadata.side_effect = msg
-    with patch("gmail_cli.cli._create_client", return_value=client):
+    with patch.object(cli_module, "_create_client", return_value=client):
         result = CliRunner().invoke(cli, ["batch", "list", "--query", "q", "--format", "json"])
     assert result.exit_code == 0
     data = json.loads(result.output)
@@ -157,7 +160,7 @@ def test_apply_dry_run_archive_cli_skips_prompts_and_all_writes(tmp_path):
     client, path, _ = create_plan(tmp_path)
     original_artifact = path.read_bytes()
     with (
-        patch("gmail_cli.cli._create_client", return_value=client),
+        patch.object(cli_module, "_create_client", return_value=client),
         patch.object(
             batch_ops, "click_tty_confirm", side_effect=AssertionError("prompt")
         ) as confirm,
@@ -181,7 +184,7 @@ def test_cli_batch_apply_partial_has_exit_three(tmp_path):
     client, path, _ = create_plan(tmp_path)
     client.modify_message.side_effect = GmailError("write failed")
     with (
-        patch("gmail_cli.cli._create_client", return_value=client),
+        patch.object(cli_module, "_create_client", return_value=client),
         patch.object(batch_ops, "click_tty_confirm", return_value=True),
     ):
         result = CliRunner().invoke(cli, ["batch", "apply", "--plan", str(path)])
@@ -221,7 +224,7 @@ def test_plan_checks_query_membership_and_never_reads_bodies(tmp_path):
 def test_label_list_json_schema_and_default_table_compatibility():
     client = MagicMock()
     client.list_labels.return_value = [Label(id="L1", name="Work")]
-    with patch("gmail_cli.cli._create_client", return_value=client):
+    with patch.object(cli_module, "_create_client", return_value=client):
         json_result = CliRunner().invoke(cli, ["list", "labels", "--format", "json"])
         table_result = CliRunner().invoke(cli, ["list", "labels"])
     assert json_result.exit_code == table_result.exit_code == 0
@@ -311,7 +314,7 @@ def test_cli_rejects_wrong_nested_artifact_shapes_before_client_or_write(
     artifact = json.loads(path.read_text())
     mutate(artifact)
     path.write_text(json.dumps(artifact))
-    with patch("gmail_cli.cli._create_client", side_effect=AssertionError("client created")):
+    with patch.object(cli_module, "_create_client", side_effect=AssertionError("client created")):
         result = CliRunner().invoke(
             cli,
             [
@@ -331,7 +334,7 @@ def test_cli_rejects_wrong_nested_artifact_shapes_before_client_or_write(
 def test_cli_batch_json_errors_hide_traceback_and_sensitive_details(tmp_path):
     artifact = tmp_path / "broken.json"
     artifact.write_text('{"schema_version": 1, "assignments": [null]}')
-    with patch("gmail_cli.cli._create_client", return_value=assigned_client()):
+    with patch.object(cli_module, "_create_client", return_value=assigned_client()):
         result = CliRunner().invoke(cli, ["batch", "apply", "--plan", str(artifact)])
     assert result.exit_code == 2
     response = json.loads(result.output)
@@ -510,7 +513,7 @@ def test_batch_cli_table_and_error_response(tmp_path):
     client = MagicMock()
     client.list_message_page.return_value = {"messages": [{"id": "m1"}]}
     client.get_message_metadata.return_value = msg("m1")
-    with patch("gmail_cli.cli._create_client", return_value=client):
+    with patch.object(cli_module, "_create_client", return_value=client):
         table = CliRunner().invoke(cli, ["batch", "list", "--query", "q", "--format", "table"])
         client.list_message_page.side_effect = ValueError("invalid query")
         error = CliRunner().invoke(cli, ["batch", "list", "--query", "q"])
@@ -526,7 +529,7 @@ def test_plan_cli_success_writes_artifact_and_emits_results(tmp_path):
     source = tmp_path / "input.json"
     destination = tmp_path / "plan.json"
     source.write_text(json.dumps(plan_input()))
-    with patch("gmail_cli.cli._create_client", return_value=client):
+    with patch.object(cli_module, "_create_client", return_value=client):
         result = CliRunner().invoke(
             cli, ["batch", "plan", "--input", str(source), "--out", str(destination)]
         )
@@ -545,7 +548,7 @@ def test_verify_cli_json_success_and_mismatch_results(tmp_path, labels, expected
     client, path, _ = create_plan(tmp_path)
     client.get_message_metadata.side_effect = None
     client.get_message_metadata.return_value = msg("m1", labels)
-    with patch("gmail_cli.cli._create_client", return_value=client):
+    with patch.object(cli_module, "_create_client", return_value=client):
         result = CliRunner().invoke(
             cli, ["batch", "verify", "--plan", str(path), "--format", "json"]
         )
@@ -569,9 +572,9 @@ def test_verify_cli_default_table_outputs_message_results_without_body(tmp_path)
         ],
     }
     with (
-        patch("gmail_cli.cli._read_plan", return_value={}),
-        patch("gmail_cli.cli._create_client", return_value=client),
-        patch("gmail_cli.cli.verify_plan", return_value=response),
+        patch.object(cli_module, "_read_plan", return_value={}),
+        patch.object(cli_module, "_create_client", return_value=client),
+        patch.object(cli_module, "verify_plan", return_value=response),
     ):
         result = CliRunner().invoke(cli, ["batch", "verify", "--plan", str(artifact)])
 
