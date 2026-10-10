@@ -1,5 +1,6 @@
 import json
 import os
+from datetime import datetime, timedelta
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -247,6 +248,7 @@ def test_plan_artifact_is_private_versioned_and_contains_no_body(tmp_path):
     _client, path, result = create_plan(tmp_path)
     artifact = json.loads(path.read_text())
     assert artifact["schema_version"] == 1
+    assert datetime.fromisoformat(artifact["created_at"]).utcoffset() == timedelta(0)
     assert "body" not in path.read_text()
     assert os.stat(path).st_mode & 0o777 == 0o600
     assert set(result) >= {"results"}

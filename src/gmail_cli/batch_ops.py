@@ -6,7 +6,7 @@ import tempfile
 import unicodedata
 import uuid
 from contextlib import suppress
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import click
@@ -206,7 +206,7 @@ def build_plan(client, data, output_path):
     plan = {
         "schema_version": 1,
         "plan_id": str(uuid.uuid4()),
-        "created_at": datetime.now(UTC).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),  # noqa: UP017 — Python 3.10 compatibility
         "query": data["query"],
         "max_results": data["max_results"],
         "assignments": planned,
