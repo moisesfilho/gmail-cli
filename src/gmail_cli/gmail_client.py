@@ -18,6 +18,57 @@ class GmailClient:
     def __init__(self, service):
         self._service = service
 
+    def list_message_page(self, **params):
+        try:
+            return self._service.users().messages().list(**params).execute()
+        except HttpError as e:
+            raise GmailError("Erro ao listar mensagens") from e
+
+    def get_messages(self, message_ids):
+        """Fetch full messages in one supported Google API HTTP batch."""
+        create_batch = getattr(self._service, "new_batch_http_request", None)
+        if not callable(create_batch):
+            return self._get_messages_individually(message_ids)
+        messages = {}
+        failures = {}
+
+        def on_result(request_id, response, exception):
+            try:
+                if exception is not None:
+                    failures[request_id] = GmailError("Erro ao obter mensagem")
+                else:
+                    messages[request_id] = self._message_from_data(response)
+            except Exception:  # noqa: BLE001 - callback must fail closed for any malformed response
+                failures[request_id] = GmailError("Resposta inválida da mensagem")
+
+        try:
+            batch = create_batch()
+            for message_id in message_ids:
+                request = (
+                    self._service.users().messages().get(userId="me", id=message_id, format="full")
+                )
+                batch.add(request, callback=on_result, request_id=message_id)
+            batch.execute()
+        except Exception:  # noqa: BLE001 - setup/execute failures invalidate the whole batch
+            return {
+                message_id: GmailError("Erro ao executar batch Gmail") for message_id in message_ids
+            }
+        return {
+            message_id: failures.get(message_id)
+            or messages.get(message_id)
+            or GmailError("Resposta ausente do batch Gmail")
+            for message_id in message_ids
+        }
+
+    def _get_messages_individually(self, message_ids):
+        messages = {}
+        for message_id in message_ids:
+            try:
+                messages[message_id] = self.get_message(message_id)
+            except GmailError as error:
+                messages[message_id] = error
+        return messages
+
     def list_messages(self, query="", max_results=20, label_ids=None):
         params = {"userId": "me"}
         if query:
@@ -46,7 +97,7 @@ class GmailClient:
                         break
             return [self._build_message_meta(m) for m in all_messages]
         except HttpError as e:
-            raise GmailError(f"Erro ao listar mensagens: {e}")
+            raise GmailError("Erro ao listar mensagens") from e
 
     def _build_message_meta(self, msg_data):
         meta = (
@@ -79,7 +130,10 @@ class GmailClient:
                 .execute()
             )
         except HttpError as e:
-            raise GmailError(f"Erro ao obter mensagem: {e}")
+            raise GmailError("Erro ao obter mensagem") from e
+        return self._message_from_data(msg)
+
+    def _message_from_data(self, msg):
         headers = {h["name"]: h["value"] for h in msg["payload"]["headers"]}
         return Message(
             id=msg["id"],

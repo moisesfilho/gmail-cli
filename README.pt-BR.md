@@ -28,6 +28,14 @@ CLI para gerenciar e-mail, labels, rascunhos e anexos do Gmail via terminal.
 - **Comando em Linguagem Natural** — descreva o que quer em texto simples
 - **Logs cíclicos da aplicação** — registra todos os comandos, prompts e respostas sugeridas, mantendo apenas o número de dias configurado (padrão 120)
 
+### Harness JSON versionado
+
+`gmail harness` também aceita requisições JSON v1 pela entrada padrão. A saída padrão contém a resposta JSON, inclusive erros estruturados; o status de saída do processo indica falha (2 para falhas globais/de requisição v1 e 3 para escritas parciais). A saída de erro fica reservada a diagnósticos do runtime e não é o canal de resposta de erro v1. Os comandos antigos sem versão (`list`, `get` e `mark`) e os comandos standalone continuam disponíveis.
+
+Requisição de listagem: `{"version":1,"operation":"list","query":"","label_ids":[],"limit":50,"cursor":null}`. `limit` aceita 1–100. A resposta contém `version`, `messages`, `next_cursor` e `has_more`. O cursor opaco e não assinado representa uma posição vinculada aos filtros normalizados; não é credencial de autorização nem garante snapshot consistente. IDs são deduplicados preservando a ordem do Gmail. O corpo prioriza texto puro (HTML como fallback), normaliza quebras de linha e limita cada string de corpo serializada como JSON (incluindo escapes) a 16 KiB e o total da página a 256 KiB. Mensagens truncadas incluem o marcador quando ele couber; se não couber, `body` fica vazio e `body_truncated` é `true`. O campo opcional `body_truncated` aparece somente quando houve truncamento.
+
+Requisição de aplicação: `{"version":1,"operation":"apply","authorize":true,"archive_authorized":false,"assignments":[{"message_id":"…","labels":["nome ou ID da label"]}]}`. A autorização deve ser literalmente `true`; arquivamento exige outro `true` explícito. Todas as mensagens e labels existentes não sistêmicas são pré-validadas antes de qualquer escrita. A operação só adiciona labels, é idempotente e não cria labels; só remove INBOX com autorização de arquivamento. A resposta informa resultado `success`, `failed` ou `not_attempted` por item e status global. Falha no preflight não faz escritas; falhas remotas podem deixar alterações parciais e não há rollback. Códigos de saída: 0 sucesso, 2 falha global/preflight, 3 escrita parcial. O protocolo não solicita escopos OAuth adicionais.
+
 ## Instalação
 
 ```bash

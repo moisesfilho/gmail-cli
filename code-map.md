@@ -8,10 +8,11 @@ com classificacao de emails por provedores de modelos de linguagem.
 | Caminho | Responsabilidade |
 | --- | --- |
 | `src/gmail_cli/cli.py` | Comandos Click standalone/JSON harness, processamento de prompts, classificacao e exportacao. |
+| `src/gmail_cli/harness_v1.py` | Validação e implementação isolada das operações JSON v1; lista páginas com corpos limitados pelo tamanho serializado JSON UTF-8 e sinaliza truncamento. |
 | `src/gmail_cli/cli.py` (`cli`) | Grupo raiz exposto pelo comando instalado `gmail`. |
 | `src/gmail_cli/__main__.py` | Execucao do CLI como modulo Python. |
 | `src/gmail_cli/auth.py` | Autenticacao OAuth do Google e ciclo de vida das credenciais. |
-| `src/gmail_cli/gmail_client.py` | Operacoes da API do Gmail e tratamento de erros do cliente. |
+| `src/gmail_cli/gmail_client.py` | Operacoes da API do Gmail, leituras em batch fail-closed e tratamento de erros do cliente. |
 | `src/gmail_cli/models.py` | Modelos de dados `Message`, `Label` e `Draft`. |
 | `src/gmail_cli/formatter.py` | Formata saidas para exibicao no terminal. |
 | `src/gmail_cli/labels_cache.py` | Cache local de marcadores e atualizacao a partir do Gmail. |

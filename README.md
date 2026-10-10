@@ -28,6 +28,14 @@ CLI to manage Gmail emails, labels, drafts, and attachments from the terminal.
 - **Natural Language Prompt** — describe what you want in plain text
 - **Cyclic Application Logs** — records every command, prompt, and suggested response, keeping only the configured number of days (default 120)
 
+### Versioned JSON harness
+
+`gmail harness` also accepts version 1 JSON requests on stdin. Its stdout contains the JSON response, including structured errors; the process exit status indicates failure (2 for v1 request/global failures and 3 for partial writes). Stderr is reserved for runtime diagnostics and is not the v1 error-response channel. Existing unversioned `list`, `get`, and `mark` requests and standalone commands remain available.
+
+List request: `{"version":1,"operation":"list","query":"","label_ids":[],"limit":50,"cursor":null}`. `limit` must be 1–100. The response contains `version`, `messages`, `next_cursor`, and `has_more`. Cursors are opaque, unsigned positions bound to normalized query/label filters; they are not authorization credentials or snapshot guarantees. Message IDs are deduplicated in Gmail order. The body prefers plain text (HTML fallback), normalizes line endings, and bounds each JSON-serialized body string (including JSON escaping) to 16 KiB and the page total to 256 KiB. Truncated messages include the marker when it fits; if it cannot fit, `body` is empty and `body_truncated` is `true`. The optional `body_truncated` field appears only when truncation occurred.
+
+Apply request: `{"version":1,"operation":"apply","authorize":true,"archive_authorized":false,"assignments":[{"message_id":"…","labels":["Label name or ID"]}]}`. Authorization must be literal `true`; archiving requires its separate literal `true`. All messages and existing non-system labels are preflighted before writes. Apply only adds labels, is idempotent, and never creates labels; INBOX removal occurs only with archive authorization. Responses give per-item `success`, `failed`, or `not_attempted` results and a global status. A preflight failure performs no writes; remote failures may leave partial changes and are not rolled back. Exit codes are 0 for success, 2 for global/preflight failure, and 3 for partial writes. No broader OAuth scopes are requested by this protocol.
+
 ## Installation
 
 ```bash

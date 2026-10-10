@@ -5,7 +5,7 @@ import pytest
 from googleapiclient.errors import HttpError
 
 from gmail_cli import GmailError
-from gmail_cli.models import Draft, Label
+from gmail_cli.models import Draft, Label, Message
 
 
 def _make_http_error(status=400, message=b"error"):
@@ -15,6 +15,132 @@ def _make_http_error(status=400, message=b"error"):
 
 
 class TestGmailClient:
+    def test_list_message_page_sanitizes_http_error(self, gmail_client):
+        gmail_client._service.users().messages().list.return_value.execute.side_effect = (
+            _make_http_error(message=b"synthetic secret response")
+        )
+        with pytest.raises(GmailError, match=r"^Erro ao listar mensagens$") as raised:
+            gmail_client.list_message_page(userId="me", maxResults=1)
+        assert "synthetic secret response" not in str(raised.value)
+
+    def test_get_messages_batches_callbacks_and_preserves_input_order(self, gmail_client):
+        class StubBatch:
+            def __init__(self):
+                self.requests = []
+                self.execute_count = 0
+
+            def add(self, request, callback, request_id):
+                self.requests.append((request_id, callback))
+
+            def execute(self):
+                self.execute_count += 1
+                for request_id, callback in reversed(self.requests):
+                    callback(
+                        request_id,
+                        {
+                            "id": request_id,
+                            "threadId": f"thread-{request_id}",
+                            "labelIds": [],
+                            "payload": {"headers": []},
+                        },
+                        None,
+                    )
+
+        batch = StubBatch()
+        gmail_client._service.new_batch_http_request.return_value = batch
+        messages = gmail_client.get_messages(["first", "second"])
+        assert batch.execute_count == 1
+        assert [request_id for request_id, _ in batch.requests] == ["first", "second"]
+        assert list(messages) == ["first", "second"]
+        assert [messages[mid].id for mid in messages] == ["first", "second"]
+
+    def test_get_messages_callback_error_fails_item_closed(self, gmail_client):
+        class FailedCallbackBatch:
+            def add(self, request, callback, request_id):
+                self.callback = callback
+                self.request_id = request_id
+
+            def execute(self):
+                self.callback(self.request_id, None, RuntimeError("private failure detail"))
+
+        gmail_client._service.new_batch_http_request.return_value = FailedCallbackBatch()
+        messages = gmail_client.get_messages(["failed"])
+        assert isinstance(messages["failed"], GmailError)
+        assert "private failure detail" not in str(messages["failed"])
+
+    def test_get_messages_missing_callback_response_fails_closed(self, gmail_client):
+        class MissingResponseBatch:
+            def add(self, request, callback, request_id):
+                self.request_id = request_id
+
+            def execute(self):
+                return None
+
+        gmail_client._service.new_batch_http_request.return_value = MissingResponseBatch()
+        messages = gmail_client.get_messages(["missing"])
+        assert isinstance(messages["missing"], GmailError)
+
+    def test_get_messages_malformed_callback_response_fails_closed(self, gmail_client):
+        class MalformedResponseBatch:
+            def add(self, request, callback, request_id):
+                self.callback = callback
+                self.request_id = request_id
+
+            def execute(self):
+                self.callback(self.request_id, {"id": self.request_id}, None)
+
+        gmail_client._service.new_batch_http_request.return_value = MalformedResponseBatch()
+        messages = gmail_client.get_messages(["malformed"])
+        assert isinstance(messages["malformed"], GmailError)
+
+    def test_get_messages_uses_individual_fallback_without_batch_factory(self, gmail_client):
+        del gmail_client._service.new_batch_http_request
+        get_request = gmail_client._service.users().messages().get
+        get_request().execute.side_effect = [
+            {"id": "one", "threadId": "t1", "labelIds": [], "payload": {"headers": []}},
+            {"id": "two", "threadId": "t2", "labelIds": [], "payload": {"headers": []}},
+        ]
+        get_request.reset_mock()
+        messages = gmail_client.get_messages(["one", "two"])
+        assert [messages[mid].id for mid in ("one", "two")] == ["one", "two"]
+        assert get_request.call_count == 2
+
+    def test_get_messages_fallback_retains_per_id_gmail_error(self, gmail_client):
+        del gmail_client._service.new_batch_http_request
+        with patch.object(
+            gmail_client,
+            "get_message",
+            side_effect=[
+                GmailError("synthetic per-message failure"),
+                Message(id="ok", thread_id="t", from_="", subject="", date=""),
+            ],
+        ):
+            messages = gmail_client.get_messages(["failed", "ok"])
+        assert list(messages) == ["failed", "ok"]
+        assert isinstance(messages["failed"], GmailError)
+        assert messages["ok"].id == "ok"
+
+    def test_get_messages_batch_setup_failure_marks_all_items_failed(self, gmail_client):
+        gmail_client._service.new_batch_http_request.side_effect = RuntimeError(
+            "private setup details"
+        )
+        messages = gmail_client.get_messages(["one", "two"])
+        assert all(isinstance(messages[mid], GmailError) for mid in ("one", "two"))
+        assert all("private setup details" not in str(messages[mid]) for mid in messages)
+
+    def test_get_messages_batch_execute_failure_marks_all_items_failed(self, gmail_client):
+        class ExecuteFailureBatch:
+            def add(self, request, callback, request_id):
+                pass
+
+            def execute(self):
+                raise RuntimeError("private execute details")
+
+        gmail_client._service.new_batch_http_request.return_value = ExecuteFailureBatch()
+        messages = gmail_client.get_messages(["one", "two"])
+        assert all(isinstance(messages[mid], GmailError) for mid in ("one", "two"))
+        assert all("private execute details" not in str(messages[mid]) for mid in messages)
+
     def test_list_messages_empty(self, gmail_client):
         gmail_client._service.users().messages().list().execute.return_value = {}
         result = gmail_client.list_messages()

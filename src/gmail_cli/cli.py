@@ -10,6 +10,7 @@ import click
 from .auth import AuthError, AuthService
 from .formatter import CliFormatter
 from .gmail_client import GmailClient, GmailError
+from .harness_v1 import apply_v1, list_v1, validate_v1_request
 from .labels_cache import label_names, load_labels, refresh_labels
 from .logging_utils import get_logger
 from .models import Message
@@ -208,10 +209,32 @@ def _harness_message(message):
 
 
 @cli.command("harness")
-def harness_request():  # noqa: PLR0912
+def harness_request():  # noqa: PLR0912, PLR0915
     """Process one JSON request on stdin for an external harness."""
+    request = None
     try:
         request = json.load(sys.stdin)
+        if isinstance(request, dict) and "version" in request:
+            if type(request.get("version")) is not int or request["version"] != 1:
+                raise ValueError("Unsupported protocol version")
+            operation = request.get("operation")
+            validate_v1_request(request)
+            client = _create_client()
+            if operation == "list" or (operation is None and "assignments" not in request):
+                response = list_v1(client, request)
+                click.echo(json.dumps(response, ensure_ascii=False))
+                return
+            else:
+                response = apply_v1(
+                    client, {key: value for key, value in request.items() if key != "operation"}
+                )
+                click.echo(json.dumps(response, ensure_ascii=False))
+                status = response["status"]
+                if status == "partial":
+                    raise click.exceptions.Exit(3)
+                if status in {"failed", "preflight_failed"}:
+                    raise click.exceptions.Exit(2)
+                return
         if not isinstance(request, dict) or request.get("operation") not in {"list", "get", "mark"}:
             raise ValueError("Invalid request operation")
         operation = request["operation"]
@@ -271,7 +294,18 @@ def harness_request():  # noqa: PLR0912
             else:
                 client.trash_message(request["id"])
             response = {"ok": True, "data": {"id": request["id"], "action": request["action"]}}
+    except click.exceptions.Exit:
+        raise
     except (json.JSONDecodeError, ValueError, AuthError, GmailError, OSError):
+        if isinstance(request, dict) and "version" in request:
+            response = {
+                "version": 1,
+                "status": "failed",
+                "results": [],
+                "error": {"code": "request_or_gmail_error", "message": "Request failed"},
+            }
+            click.echo(json.dumps(response, ensure_ascii=False))
+            raise click.exceptions.Exit(2)
         response = {
             "ok": False,
             "error": {
@@ -280,6 +314,19 @@ def harness_request():  # noqa: PLR0912
             },
         }
     except Exception:  # noqa: BLE001
+        if isinstance(request, dict) and "version" in request:
+            click.echo(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "status": "failed",
+                        "results": [],
+                        "error": {"code": "internal_error", "message": "Request failed"},
+                    },
+                    ensure_ascii=False,
+                )
+            )
+            raise click.exceptions.Exit(2)
         response = {"ok": False, "error": {"code": "internal_error", "message": "Request failed"}}
     click.echo(json.dumps(response, ensure_ascii=False))
 
